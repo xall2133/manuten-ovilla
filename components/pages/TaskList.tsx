@@ -142,6 +142,16 @@ export const TaskList = () => {
     if (c.includes('méd') || c.includes('med')) return 'text-amber-600 bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900/50';
     return 'text-emerald-600 bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-900/50'; // Baixa/Low
   };
+  
+  // Maintenance Type Color
+  const getTypeColor = (type?: string) => {
+      switch(type) {
+          case 'Corretiva': return 'bg-red-50 text-red-600 border-red-100 dark:bg-red-900/20 dark:border-red-900/30 dark:text-red-300';
+          case 'Preventiva': return 'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20 dark:border-blue-900/30 dark:text-blue-300';
+          case 'Programada': return 'bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-900/20 dark:border-purple-900/30 dark:text-purple-300';
+          default: return 'bg-slate-50 text-slate-500';
+      }
+  };
 
   // Short Date Formatter (DD/MM)
   const formatShortDate = (dateString?: string) => {
@@ -237,7 +247,7 @@ export const TaskList = () => {
            <table className="w-full text-left border-collapse min-w-[1000px]">
              <thead>
                <tr className="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs uppercase font-semibold">
-                 <th className="px-3 py-3 w-[25%]">Serviço / Torre</th>
+                 <th className="px-3 py-3 w-[25%]">Serviço / Torre / Tipo</th>
                  <th className="px-3 py-3 w-[15%]">Datas (Ab/In/Fi)</th>
                  <th className="px-3 py-3 w-[15%]">Local / Setor</th>
                  <th className="px-3 py-3">Responsável</th>
@@ -259,14 +269,19 @@ export const TaskList = () => {
                       const materialNames = getMaterialNames(task.materials);
                       return (
                         <tr key={task.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                            {/* Service / Tower */}
+                            {/* Service / Tower / Type */}
                             <td className="px-3 py-3 align-top">
                                 <div className="font-bold text-slate-800 dark:text-slate-200 flex items-start gap-2 text-sm">
                                     <Wrench size={14} className="text-blue-500 shrink-0 mt-0.5" />
                                     <span className="leading-tight">{getServiceName(task.serviceId)}</span>
                                 </div>
-                                <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mt-1 pl-6">
-                                    {getTowerName(task.towerId)}
+                                <div className="flex items-center gap-2 mt-1 pl-6">
+                                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                                        {getTowerName(task.towerId)}
+                                    </span>
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded border uppercase tracking-wider ${getTypeColor(task.type)}`}>
+                                        {task.type || 'Corretiva'}
+                                    </span>
                                 </div>
                             </td>
 

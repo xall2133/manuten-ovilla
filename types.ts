@@ -10,6 +10,7 @@ export interface User {
 }
 
 export type Criticality = 'Alta' | 'Média' | 'Baixa';
+export type MaintenanceType = 'Corretiva' | 'Preventiva' | 'Programada';
 
 export interface CatalogItem {
   id: string;
@@ -35,6 +36,7 @@ export interface Task {
   responsibleId: string;
   situation: string; 
   criticality: Criticality;
+  type: MaintenanceType; // New field
   materials: string[]; 
   callDate: string;
   startDate?: string;
@@ -65,6 +67,10 @@ export interface ScheduleItem {
   thursday: string;
   friday: string;
   saturday: string;
+  // Obra fields
+  workStartDate?: string;
+  workEndDate?: string;
+  workNoticeDate?: string;
 }
 
 export interface MonthlyScheduleItem {
@@ -74,6 +80,24 @@ export interface MonthlyScheduleItem {
   week2: string;
   week3: string;
   week4: string;
+  // Obra fields
+  workStartDate?: string;
+  workEndDate?: string;
+  workNoticeDate?: string;
+}
+
+export type Frequency = 'Semanal' | 'Mensal' | 'Trimestral' | 'Semestral' | 'Anual';
+
+export interface ThirdPartyScheduleItem {
+  id: string;
+  company: string;
+  service: string;
+  frequency: Frequency;
+  contact?: string;
+  // Obra fields
+  workStartDate?: string;
+  workEndDate?: string;
+  workNoticeDate?: string;
 }
 
 export interface PaintingProject {

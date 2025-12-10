@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useData } from '../../context/DataContext';
-import { Task, Criticality } from '../../types';
+import { Task, Criticality, MaintenanceType } from '../../types';
 import { X, Save, Calendar, MapPin, CheckSquare, Square } from 'lucide-react';
 
 interface TaskFormModalProps {
@@ -22,6 +22,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, i
     responsibleId: '',
     situation: settings.situations[0]?.name || 'Aberto',
     criticality: 'Média',
+    type: 'Corretiva',
     materials: [],
     callDate: new Date().toISOString().split('T')[0],
     startDate: '',
@@ -47,6 +48,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, i
             responsibleId: settings.responsibles[0]?.id || '',
             situation: settings.situations[0]?.name || 'Aberto',
             criticality: 'Média',
+            type: 'Corretiva',
             materials: [],
             callDate: new Date().toISOString().split('T')[0],
             startDate: '',
@@ -165,14 +167,22 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, i
              </div>
 
              <div className="border-t border-slate-100 dark:border-slate-700 pt-6">
-                <h4 className="text-sm uppercase tracking-wide text-slate-500 dark:text-slate-400 font-semibold mb-4">Status & Prioridade</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <h4 className="text-sm uppercase tracking-wide text-slate-500 dark:text-slate-400 font-semibold mb-4">Status & Classificação</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Situação</label>
                         <select name="situation" value={formData.situation} onChange={handleChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                            {settings.situations.map(s => (
                                <option key={s.id} value={s.name}>{s.name}</option>
                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Tipo de Manutenção</label>
+                        <select name="type" value={formData.type} onChange={handleChange} className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                           <option value="Corretiva">Corretiva</option>
+                           <option value="Preventiva">Preventiva</option>
+                           <option value="Programada">Programada</option>
                         </select>
                     </div>
                     <div>

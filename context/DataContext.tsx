@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { Task, SettingsState, CatalogItem, Visit, ScheduleItem, MonthlyScheduleItem, PaintingProject, PurchaseRequest } from '../types';
+import { Task, SettingsState, CatalogItem, Visit, ScheduleItem, MonthlyScheduleItem, PaintingProject, PurchaseRequest, ThirdPartyScheduleItem } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface DataContextType {
@@ -7,6 +7,7 @@ interface DataContextType {
   visits: Visit[];
   schedule: ScheduleItem[];
   monthlySchedule: MonthlyScheduleItem[];
+  thirdPartySchedule: ThirdPartyScheduleItem[];
   paintingProjects: PaintingProject[];
   purchases: PurchaseRequest[];
   settings: SettingsState;
@@ -33,6 +34,11 @@ interface DataContextType {
   addMonthlyScheduleItem: (item: Omit<MonthlyScheduleItem, 'id'>) => void;
   updateMonthlyScheduleItem: (id: string, updates: Partial<MonthlyScheduleItem>) => void;
   deleteMonthlyScheduleItem: (id: string) => void;
+
+  // Schedule (Third Party / Annual)
+  addThirdPartyScheduleItem: (item: Omit<ThirdPartyScheduleItem, 'id'>) => void;
+  updateThirdPartyScheduleItem: (id: string, updates: Partial<ThirdPartyScheduleItem>) => void;
+  deleteThirdPartyScheduleItem: (id: string) => void;
   
   // Painting
   addPaintingProject: (item: Omit<PaintingProject, 'id'>) => void;
@@ -77,6 +83,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
   const [visits, setVisits] = useState<Visit[]>([]);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [monthlySchedule, setMonthlySchedule] = useState<MonthlyScheduleItem[]>([]);
+  const [thirdPartySchedule, setThirdPartySchedule] = useState<ThirdPartyScheduleItem[]>([]);
   const [paintingProjects, setPaintingProjects] = useState<PaintingProject[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRequest[]>([]);
   const [settings, setSettings] = useState<SettingsState>(initialSettings);
@@ -92,6 +99,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           visitsRes, 
           scheduleRes, 
           monthlyRes, 
+          thirdPartyRes,
           paintingRes, 
           purchasesRes,
           sectorsRes,
@@ -105,6 +113,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           supabase.from('visits').select('*'),
           supabase.from('schedule').select('*'),
           supabase.from('monthly_schedule').select('*'),
+          supabase.from('third_party_schedule').select('*'),
           supabase.from('painting_projects').select('*'),
           supabase.from('purchases').select('*'),
           supabase.from('sectors').select('*'),
@@ -126,6 +135,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                 responsibleId: t.responsible_id,
                 situation: t.situation,
                 criticality: t.criticality,
+                type: t.maintenance_type || 'Corretiva', // Map DB column to FE
                 materials: t.materials || [],
                 callDate: t.call_date,
                 startDate: t.start_date,
@@ -136,8 +146,34 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
             setTasks(mappedTasks);
         }
         if (visitsRes.data) setVisits(visitsRes.data.map((v:any) => ({...v, returnDate: v.return_date})));
-        if (scheduleRes.data) setSchedule(scheduleRes.data);
-        if (monthlyRes.data) setMonthlySchedule(monthlyRes.data);
+        
+        if (scheduleRes.data) {
+             setSchedule(scheduleRes.data.map((s:any) => ({
+                 ...s,
+                 workStartDate: s.work_start_date,
+                 workEndDate: s.work_end_date,
+                 workNoticeDate: s.work_notice_date
+             })));
+        }
+
+        if (monthlyRes.data) {
+            setMonthlySchedule(monthlyRes.data.map((s:any) => ({
+                 ...s,
+                 workStartDate: s.work_start_date,
+                 workEndDate: s.work_end_date,
+                 workNoticeDate: s.work_notice_date
+             })));
+        }
+
+        if (thirdPartyRes.data) {
+            setThirdPartySchedule(thirdPartyRes.data.map((s:any) => ({
+                ...s,
+                workStartDate: s.work_start_date,
+                workEndDate: s.work_end_date,
+                workNoticeDate: s.work_notice_date
+            })));
+        }
+
         if (paintingRes.data) setPaintingProjects(paintingRes.data.map((p:any) => ({...p, endDateForecast: p.end_date_forecast, startDate: p.start_date, paintDetails: p.paint_details})));
         if (purchasesRes.data) setPurchases(purchasesRes.data.map((p:any) => ({...p, requestDate: p.request_date, approvalDate: p.approval_date, entryDate: p.entry_date})));
 
@@ -177,6 +213,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         responsible_id: newTask.responsibleId,
         situation: newTask.situation,
         criticality: newTask.criticality,
+        maintenance_type: newTask.type,
         materials: newTask.materials,
         call_date: newTask.callDate,
         start_date: newTask.startDate,
@@ -204,6 +241,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     if (updates.responsibleId) dbUpdates.responsible_id = updates.responsibleId;
     if (updates.situation) dbUpdates.situation = updates.situation;
     if (updates.criticality) dbUpdates.criticality = updates.criticality;
+    if (updates.type) dbUpdates.maintenance_type = updates.type;
     if (updates.materials) dbUpdates.materials = updates.materials;
     if (updates.callDate) dbUpdates.call_date = updates.callDate;
     if (updates.startDate) dbUpdates.start_date = updates.startDate;
@@ -216,8 +254,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
     await supabase.from('tasks').delete().eq('id', id);
   };
-
-  // ... (Other CRUD methods same as previous, just updating normalizeCriticality below) ...
 
   // --- VISITS ---
   const addVisit = async (item: Omit<Visit, 'id'>) => {
@@ -255,11 +291,21 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       const newId = generateId('S-');
       const newItem = { ...item, id: newId };
       setSchedule(prev => [newItem, ...prev]);
-      await supabase.from('schedule').insert(newItem);
+      await supabase.from('schedule').insert({
+          ...newItem,
+          work_start_date: item.workStartDate,
+          work_end_date: item.workEndDate,
+          work_notice_date: item.workNoticeDate
+      });
   };
   const updateScheduleItem = async (id: string, updates: Partial<ScheduleItem>) => {
       setSchedule(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
-      await supabase.from('schedule').update(updates).eq('id', id);
+      const dbUpdates: any = { ...updates };
+      if(updates.workStartDate !== undefined) { dbUpdates.work_start_date = updates.workStartDate; delete dbUpdates.workStartDate; }
+      if(updates.workEndDate !== undefined) { dbUpdates.work_end_date = updates.workEndDate; delete dbUpdates.workEndDate; }
+      if(updates.workNoticeDate !== undefined) { dbUpdates.work_notice_date = updates.workNoticeDate; delete dbUpdates.workNoticeDate; }
+
+      await supabase.from('schedule').update(dbUpdates).eq('id', id);
   };
   const deleteScheduleItem = async (id: string) => {
       setSchedule(prev => prev.filter(s => s.id !== id));
@@ -271,15 +317,51 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       const newId = generateId('M-');
       const newItem = { ...item, id: newId };
       setMonthlySchedule(prev => [newItem, ...prev]);
-      await supabase.from('monthly_schedule').insert(newItem);
+      await supabase.from('monthly_schedule').insert({
+          ...newItem,
+          work_start_date: item.workStartDate,
+          work_end_date: item.workEndDate,
+          work_notice_date: item.workNoticeDate
+      });
   };
   const updateMonthlyScheduleItem = async (id: string, updates: Partial<MonthlyScheduleItem>) => {
       setMonthlySchedule(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
-      await supabase.from('monthly_schedule').update(updates).eq('id', id);
+      const dbUpdates: any = { ...updates };
+      if(updates.workStartDate !== undefined) { dbUpdates.work_start_date = updates.workStartDate; delete dbUpdates.workStartDate; }
+      if(updates.workEndDate !== undefined) { dbUpdates.work_end_date = updates.workEndDate; delete dbUpdates.workEndDate; }
+      if(updates.workNoticeDate !== undefined) { dbUpdates.work_notice_date = updates.workNoticeDate; delete dbUpdates.workNoticeDate; }
+
+      await supabase.from('monthly_schedule').update(dbUpdates).eq('id', id);
   };
   const deleteMonthlyScheduleItem = async (id: string) => {
       setMonthlySchedule(prev => prev.filter(s => s.id !== id));
       await supabase.from('monthly_schedule').delete().eq('id', id);
+  };
+
+  // --- SCHEDULE (THIRD PARTY) ---
+  const addThirdPartyScheduleItem = async (item: Omit<ThirdPartyScheduleItem, 'id'>) => {
+      const newId = generateId('TP-');
+      const newItem = { ...item, id: newId };
+      setThirdPartySchedule(prev => [newItem, ...prev]);
+      await supabase.from('third_party_schedule').insert({
+          ...newItem,
+          work_start_date: item.workStartDate,
+          work_end_date: item.workEndDate,
+          work_notice_date: item.workNoticeDate
+      });
+  };
+  const updateThirdPartyScheduleItem = async (id: string, updates: Partial<ThirdPartyScheduleItem>) => {
+      setThirdPartySchedule(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+      const dbUpdates: any = { ...updates };
+      if(updates.workStartDate !== undefined) { dbUpdates.work_start_date = updates.workStartDate; delete dbUpdates.workStartDate; }
+      if(updates.workEndDate !== undefined) { dbUpdates.work_end_date = updates.workEndDate; delete dbUpdates.workEndDate; }
+      if(updates.workNoticeDate !== undefined) { dbUpdates.work_notice_date = updates.workNoticeDate; delete dbUpdates.workNoticeDate; }
+
+      await supabase.from('third_party_schedule').update(dbUpdates).eq('id', id);
+  };
+  const deleteThirdPartyScheduleItem = async (id: string) => {
+      setThirdPartySchedule(prev => prev.filter(s => s.id !== id));
+      await supabase.from('third_party_schedule').delete().eq('id', id);
   };
 
   // --- PAINTING ---
@@ -387,7 +469,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
   };
 
   const exportTasksToCSV = () => {
-    const headers = ['ID', 'Serviço', 'Torre', 'Local', 'Situação', 'Criticidade', 'Data Chamado', 'Materiais'];
+    const headers = ['ID', 'Serviço', 'Tipo', 'Torre', 'Local', 'Situação', 'Criticidade', 'Data Chamado', 'Materiais'];
     const findName = (list: CatalogItem[], id: string) => list.find(i => i.id === id)?.name || id;
 
     const rows = tasks.map(t => {
@@ -395,7 +477,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         const tower = findName(settings.towers, t.towerId);
         const materials = t.materials.map(mId => findName(settings.materials, mId)).join('; ');
 
-        return [t.id, service, tower, t.location, t.situation, t.criticality, t.callDate, materials];
+        return [t.id, service, t.type, tower, t.location, t.situation, t.criticality, t.callDate, materials];
     });
     
     let csvContent = "data:text/csv;charset=utf-8," 
@@ -417,6 +499,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       setVisits([]);
       setSchedule([]);
       setMonthlySchedule([]);
+      setThirdPartySchedule([]);
       setPaintingProjects([]);
       setPurchases([]);
 
@@ -425,10 +508,13 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           supabase.from('visits').delete().neq('id', '0'),
           supabase.from('schedule').delete().neq('id', '0'),
           supabase.from('monthly_schedule').delete().neq('id', '0'),
+          supabase.from('third_party_schedule').delete().neq('id', '0'),
           supabase.from('painting_projects').delete().neq('id', '0'),
           supabase.from('purchases').delete().neq('id', '0')
       ]);
   };
+
+  // ... (normalize helpers keep same)
 
   const normalizeDate = (dateStr: string) => {
       if (!dateStr || dateStr.trim() === '') return new Date().toISOString().split('T')[0];
@@ -454,7 +540,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       return cleanStr;
   };
 
-  // --- DATA NORMALIZATION HELPERS ---
   const normalizeCriticality = (val: string): 'Alta' | 'Média' | 'Baixa' => {
       const v = val.toLowerCase().trim();
       if (v.includes('alt') || v.includes('high') || v.includes('urge') || v.includes('crit') || v.includes('crít')) return 'Alta';
@@ -504,6 +589,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         if (headers.some(h => h.includes('unidade') && h.includes('torre'))) detectedType = 'visits';
         else if (headers.some(h => h.includes('tinta') || h.includes('pintura') || h.includes('demao'))) detectedType = 'painting';
         else if (headers.some(h => h.includes('quantidade') && (h.includes('descricao') || h.includes('descrição')))) detectedType = 'purchases';
+        else if (headers.some(h => h.includes('empresa') || h.includes('frequencia'))) detectedType = 'third_party';
         else if (headers.some(h => h.includes('segunda') && h.includes('terca'))) detectedType = 'weekly_schedule';
         else if (headers.some(h => h.includes('semana 1'))) detectedType = 'monthly_schedule';
         else if (headers.some(h => h.includes('titulo') || h.includes('servico') || h.includes('criticidade'))) detectedType = 'tasks';
@@ -511,6 +597,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         // 3. Process Data
         let count = 0;
         
+        // ... (Settings Logic) ...
         const pendingSettingsInserts: Record<keyof SettingsState, CatalogItem[]> = {
             sectors: [],
             services: [],
@@ -547,10 +634,9 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
             return newId;
         };
 
-        // ... (Logic for other types same as before) ...
+        // ... (Process types)
         if (detectedType === 'visits') {
-             // ... same
-             const newVisits = rows.map(r => ({
+            const newVisits = rows.map(r => ({
                 id: generateId('V-'),
                 tower: getValue(r, 'torre') || 'T1',
                 unit: getValue(r, 'unidade') || '000',
@@ -566,7 +652,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
             count = newVisits.length;
 
         } else if (detectedType === 'painting') {
-             // ... same
             const newProjects = rows.map(r => ({
                 id: generateId('P-'),
                 tower: getValue(r, 'torre') || 'Geral',
@@ -584,7 +669,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
             count = newProjects.length;
 
         } else if (detectedType === 'purchases') {
-             // ... same
              const newPurchases = rows.map(r => ({
                 id: generateId('R-'),
                 quantity: Number(getValue(r, 'quantidade')) || 1,
@@ -600,7 +684,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
              count = newPurchases.length;
 
         } else if (detectedType === 'weekly_schedule') {
-             // ... same
              const newSchedule = rows.map(r => ({
                  id: generateId('S-'),
                  shift: getValue(r, 'turno') || 'MANHÃ',
@@ -609,27 +692,48 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                  wednesday: getValue(r, 'quarta') || '-',
                  thursday: getValue(r, 'quinta') || '-',
                  friday: getValue(r, 'sexta') || '-',
-                 saturday: getValue(r, 'sabado') || '-'
+                 saturday: getValue(r, 'sabado') || '-',
+                 work_start_date: normalizeDate(getValue(r, 'inicio_obra')),
+                 work_end_date: normalizeDate(getValue(r, 'fim_obra')),
+                 work_notice_date: normalizeDate(getValue(r, 'aviso_obra')),
              }));
              const { error } = await supabase.from('schedule').insert(newSchedule);
              if (error) throw error;
-             setSchedule(prev => [...newSchedule, ...prev]);
+             setSchedule(prev => [...newSchedule.map(s => ({...s, workStartDate: s.work_start_date, workEndDate: s.work_end_date, workNoticeDate: s.work_notice_date})), ...prev]);
              count = newSchedule.length;
 
         } else if (detectedType === 'monthly_schedule') {
-             // ... same
              const newMonthly = rows.map(r => ({
                  id: generateId('M-'),
                  shift: getValue(r, 'turno') || 'AREA',
                  week1: getValue(r, 'semana 1') || '-',
                  week2: getValue(r, 'semana 2') || '-',
                  week3: getValue(r, 'semana 3') || '-',
-                 week4: getValue(r, 'semana 4') || '-'
+                 week4: getValue(r, 'semana 4') || '-',
+                 work_start_date: normalizeDate(getValue(r, 'inicio_obra')),
+                 work_end_date: normalizeDate(getValue(r, 'fim_obra')),
+                 work_notice_date: normalizeDate(getValue(r, 'aviso_obra')),
              }));
              const { error } = await supabase.from('monthly_schedule').insert(newMonthly);
              if (error) throw error;
-             setMonthlySchedule(prev => [...newMonthly, ...prev]);
+             setMonthlySchedule(prev => [...newMonthly.map(s => ({...s, workStartDate: s.work_start_date, workEndDate: s.work_end_date, workNoticeDate: s.work_notice_date})), ...prev]);
              count = newMonthly.length;
+        
+        } else if (detectedType === 'third_party') {
+             const newThirdParty = rows.map(r => ({
+                 id: generateId('TP-'),
+                 company: getValue(r, 'empresa') || 'Terceiro',
+                 service: getValue(r, 'servico') || '-',
+                 frequency: (getValue(r, 'frequencia') || 'Mensal') as any,
+                 contact: getValue(r, 'contato') || '-',
+                 work_start_date: normalizeDate(getValue(r, 'inicio_obra')),
+                 work_end_date: normalizeDate(getValue(r, 'fim_obra')),
+                 work_notice_date: normalizeDate(getValue(r, 'aviso_obra')),
+             }));
+             const { error } = await supabase.from('third_party_schedule').insert(newThirdParty);
+             if (error) throw error;
+             setThirdPartySchedule(prev => [...newThirdParty.map(s => ({...s, workStartDate: s.work_start_date, workEndDate: s.work_end_date, workNoticeDate: s.work_notice_date})), ...prev]);
+             count = newThirdParty.length;
 
         } else {
              // TASKS IMPORT
@@ -639,6 +743,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                  const rawSector = getValue(r, 'setor');
                  const rawResp = getValue(r, 'responsavel') || getValue(r, 'colaborador');
                  const rawSit = getValue(r, 'situacao') || getValue(r, 'status');
+                 const rawType = getValue(r, 'tipo_manutencao') || 'Corretiva';
 
                  const serviceId = findOrAdd('services', rawService || 'Serviço Geral');
                  const towerId = findOrAdd('towers', rawTower || 'Geral');
@@ -667,6 +772,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                     responsible_id: responsibleId,
                     situation: situationName,
                     criticality: criticality,
+                    maintenance_type: rawType,
                     materials: [],
                     call_date: normalizeDate(getValue(r, 'data')),
                     created_at: new Date().toISOString()
@@ -701,6 +807,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                  responsibleId: t.responsible_id,
                  situation: t.situation,
                  criticality: t.criticality,
+                 type: t.maintenance_type as any,
                  materials: t.materials,
                  callDate: t.call_date,
                  createdAt: t.created_at
@@ -721,11 +828,12 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   return (
     <DataContext.Provider value={{ 
-        tasks, visits, schedule, monthlySchedule, paintingProjects, purchases, settings, isLoading, lastUpdated, refreshData,
+        tasks, visits, schedule, monthlySchedule, thirdPartySchedule, paintingProjects, purchases, settings, isLoading, lastUpdated, refreshData,
         addTask, updateTask, deleteTask, 
         addVisit, updateVisit, deleteVisit,
         addScheduleItem, updateScheduleItem, deleteScheduleItem,
         addMonthlyScheduleItem, updateMonthlyScheduleItem, deleteMonthlyScheduleItem,
+        addThirdPartyScheduleItem, updateThirdPartyScheduleItem, deleteThirdPartyScheduleItem,
         addPaintingProject, updatePaintingProject, deletePaintingProject,
         addPurchase, updatePurchase, deletePurchase,
         addSettingItem, updateSettingItem, removeSettingItem, 
