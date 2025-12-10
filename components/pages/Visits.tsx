@@ -7,6 +7,7 @@ export const Visits = () => {
   const { visits, addVisit, updateVisit, deleteVisit, settings, importDataFromCSV } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Partial<Visit>>({});
+  const [searchTerm, setSearchTerm] = useState('');
 
   const handleAddNew = () => {
       setEditingItem({});
@@ -56,6 +57,23 @@ export const Visits = () => {
       setIsModalOpen(false);
   };
 
+  const getStatusStyle = (status: string) => {
+      const s = status?.toLowerCase() || '';
+      if (s.includes('conclu')) return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-800';
+      if (s.includes('pendente')) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800';
+      return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800';
+  };
+
+  const filteredVisits = visits.filter(visit => {
+      const term = searchTerm.toLowerCase();
+      return (
+          visit.unit?.toLowerCase().includes(term) ||
+          visit.tower?.toLowerCase().includes(term) ||
+          visit.collaborator?.toLowerCase().includes(term) ||
+          visit.situation?.toLowerCase().includes(term)
+      );
+  });
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
@@ -76,13 +94,15 @@ export const Visits = () => {
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-        {/* Filters Mock */}
+        {/* Filters */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex gap-4">
             <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
                   type="text" 
-                  placeholder="Buscar por unidade ou torre..." 
+                  placeholder="Buscar por unidade, torre ou colaborador..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 dark:text-slate-200"
                 />
              </div>
@@ -103,7 +123,9 @@ export const Visits = () => {
               </tr>
             </thead>
             <tbody className="text-sm divide-y divide-slate-100 dark:divide-slate-700">
-               {visits.map((visit) => (
+               {filteredVisits.length === 0 ? (
+                   <tr><td colSpan={8} className="p-8 text-center text-slate-500">Nenhuma visita encontrada.</td></tr>
+               ) : filteredVisits.map((visit) => (
                    <tr key={visit.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                        <td className="px-6 py-4 text-blue-600 dark:text-blue-400 font-semibold">{visit.tower}</td>
                        <td className="px-6 py-4 text-slate-800 dark:text-slate-200 font-medium">{visit.unit}</td>
@@ -111,11 +133,7 @@ export const Visits = () => {
                        <td className="px-6 py-4 text-slate-600 dark:text-slate-400 font-mono">{visit.time}</td>
                        <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{visit.collaborator}</td>
                        <td className="px-6 py-4">
-                           <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                               visit.status === 'Concluído' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
-                               visit.status === 'Pendente' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' :
-                               'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                           }`}>
+                           <span className={`px-2 py-1 rounded-full text-xs font-bold ${getStatusStyle(visit.status)}`}>
                                {visit.status}
                            </span>
                        </td>

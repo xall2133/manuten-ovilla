@@ -14,13 +14,13 @@ export const AuthProvider = ({ children }: { children?: ReactNode }) => {
 
   const login = (role: Role) => {
     // Simulate login
-    // Using Blue (2563EB) background for avatars
+    // Using Deep Blue/Purple for admin
     setUser({
       id: 'u1',
-      name: role === 'admin' ? 'Administrador Geral' : 'Operador de Campo',
-      email: role === 'admin' ? 'admin@villaprivilege.com.br' : 'op@villaprivilege.com.br',
+      name: role === 'admin' ? 'SysAdmin' : 'Field Operator 01',
+      email: role === 'admin' ? 'admin@m360.com' : 'op@m360.com',
       role: role,
-      avatar: `https://ui-avatars.com/api/?name=${role}&background=2563EB&color=fff`,
+      avatar: `https://ui-avatars.com/api/?name=${role}&background=3b82f6&color=fff&rounded=true`,
     });
   };
 

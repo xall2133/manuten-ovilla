@@ -217,6 +217,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     await supabase.from('tasks').delete().eq('id', id);
   };
 
+  // ... (Other CRUD methods same as previous, just updating normalizeCriticality below) ...
+
   // --- VISITS ---
   const addVisit = async (item: Omit<Visit, 'id'>) => {
      const newId = generateId('V-');
@@ -403,7 +405,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "tarefas_villaprivilege.csv");
+    link.setAttribute("download", "tarefas_vilaprivilege.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -428,12 +430,11 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       ]);
   };
 
-  // Helper to normalize CSV dates (DD/MM/YYYY) to ISO (YYYY-MM-DD)
   const normalizeDate = (dateStr: string) => {
       if (!dateStr || dateStr.trim() === '') return new Date().toISOString().split('T')[0];
-      // Check for DD/MM/YYYY
-      if (dateStr.includes('/')) {
-          const parts = dateStr.split('/');
+      const cleanStr = dateStr.trim();
+      if (cleanStr.includes('/')) {
+          const parts = cleanStr.split('/');
           if (parts.length === 3) {
               const d = parts[0].padStart(2, '0');
               const m = parts[1].padStart(2, '0');
@@ -441,10 +442,39 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
               return `${y}-${m}-${d}`;
           }
       }
-      return dateStr;
+      if (cleanStr.includes('-') && cleanStr.split('-')[0].length <= 2) {
+          const parts = cleanStr.split('-');
+          if (parts.length === 3) {
+              const d = parts[0].padStart(2, '0');
+              const m = parts[1].padStart(2, '0');
+              const y = parts[2];
+              return `${y}-${m}-${d}`;
+          }
+      }
+      return cleanStr;
   };
 
-  // --- SMART IMPORT LOGIC (ASYNC & SEQUENTIAL) ---
+  // --- DATA NORMALIZATION HELPERS ---
+  const normalizeCriticality = (val: string): 'Alta' | 'Média' | 'Baixa' => {
+      const v = val.toLowerCase().trim();
+      if (v.includes('alt') || v.includes('high') || v.includes('urge') || v.includes('crit') || v.includes('crít')) return 'Alta';
+      if (v.includes('méd') || v.includes('med')) return 'Média';
+      if (v.includes('baix') || v.includes('low')) return 'Baixa';
+      return 'Média'; // Default
+  };
+
+  const normalizeSituation = (val: string): string => {
+      if (!val) return 'Aberto';
+      const v = val.toLowerCase().trim();
+      
+      if (v === 'em andamento') return 'Em Andamento';
+      if (v === 'concluido' || v === 'concluído') return 'Concluído';
+      if (v === 'cancelado') return 'Cancelado';
+      if (v === 'aberto') return 'Aberto';
+      
+      return val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
+  };
+
   const importDataFromCSV = async (csvContent: string): Promise<{ success: boolean; message: string; type?: string; count?: number }> => {
     try {
         const lines = csvContent.split(/\r\n|\n/);
@@ -481,7 +511,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         // 3. Process Data
         let count = 0;
         
-        // Prepare pending inserts for settings (to batch insert them BEFORE tasks)
         const pendingSettingsInserts: Record<keyof SettingsState, CatalogItem[]> = {
             sectors: [],
             services: [],
@@ -493,7 +522,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
         const tempSettings = { ...settings };
 
-        // Helper: Queue new items for insertion
         const findOrAdd = (category: keyof SettingsState, rawValue: string): string => {
              if (!rawValue) {
                 if (tempSettings[category].length > 0) return tempSettings[category][0].id;
@@ -519,8 +547,10 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
             return newId;
         };
 
+        // ... (Logic for other types same as before) ...
         if (detectedType === 'visits') {
-            const newVisits = rows.map(r => ({
+             // ... same
+             const newVisits = rows.map(r => ({
                 id: generateId('V-'),
                 tower: getValue(r, 'torre') || 'T1',
                 unit: getValue(r, 'unidade') || '000',
@@ -530,33 +560,31 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                 status: getValue(r, 'status') || 'Pendente',
                 return_date: getValue(r, 'retorno') || '-'
             }));
-            
             const { error } = await supabase.from('visits').insert(newVisits);
             if (error) throw error;
-            
             setVisits(prev => [...newVisits.map(v => ({...v, returnDate: v.return_date})), ...prev]);
             count = newVisits.length;
 
         } else if (detectedType === 'painting') {
+             // ... same
             const newProjects = rows.map(r => ({
                 id: generateId('P-'),
                 tower: getValue(r, 'torre') || 'Geral',
                 local: getValue(r, 'local') || 'Importado',
-                criticality: (getValue(r, 'criticidade') as any) || 'Média',
+                criticality: normalizeCriticality(getValue(r, 'criticidade')), // Normalized
                 start_date: normalizeDate(getValue(r, 'inicio')),
                 end_date_forecast: normalizeDate(getValue(r, 'previsao')),
                 status: getValue(r, 'status') || '',
                 paint_details: getValue(r, 'tinta') || getValue(r, 'detalhe') || '',
                 quantity: getValue(r, 'quantidade') || ''
             }));
-            
             const { error } = await supabase.from('painting_projects').insert(newProjects);
             if (error) throw error;
-
             setPaintingProjects(prev => [...newProjects.map(p => ({...p, startDate: p.start_date, endDateForecast: p.end_date_forecast, paintDetails: p.paint_details})), ...prev]);
             count = newProjects.length;
 
         } else if (detectedType === 'purchases') {
+             // ... same
              const newPurchases = rows.map(r => ({
                 id: generateId('R-'),
                 quantity: Number(getValue(r, 'quantidade')) || 1,
@@ -566,14 +594,13 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                 approval_date: normalizeDate(getValue(r, 'aprovacao')),
                 entry_date: normalizeDate(getValue(r, 'entrada'))
              }));
-
              const { error } = await supabase.from('purchases').insert(newPurchases);
              if (error) throw error;
-
              setPurchases(prev => [...newPurchases.map(p => ({...p, requestDate: p.request_date, approvalDate: p.approval_date, entryDate: p.entry_date})), ...prev]);
              count = newPurchases.length;
 
         } else if (detectedType === 'weekly_schedule') {
+             // ... same
              const newSchedule = rows.map(r => ({
                  id: generateId('S-'),
                  shift: getValue(r, 'turno') || 'MANHÃ',
@@ -584,14 +611,13 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                  friday: getValue(r, 'sexta') || '-',
                  saturday: getValue(r, 'sabado') || '-'
              }));
-             
              const { error } = await supabase.from('schedule').insert(newSchedule);
              if (error) throw error;
-
              setSchedule(prev => [...newSchedule, ...prev]);
              count = newSchedule.length;
 
         } else if (detectedType === 'monthly_schedule') {
+             // ... same
              const newMonthly = rows.map(r => ({
                  id: generateId('M-'),
                  shift: getValue(r, 'turno') || 'AREA',
@@ -600,10 +626,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                  week3: getValue(r, 'semana 3') || '-',
                  week4: getValue(r, 'semana 4') || '-'
              }));
-
              const { error } = await supabase.from('monthly_schedule').insert(newMonthly);
              if (error) throw error;
-
              setMonthlySchedule(prev => [...newMonthly, ...prev]);
              count = newMonthly.length;
 
@@ -621,8 +645,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                  const sectorId = findOrAdd('sectors', rawSector || 'Geral');
                  const responsibleId = findOrAdd('responsibles', rawResp || 'Não Identificado');
                  
-                 let situationName = rawSit ? rawSit.trim() : 'Aberto';
-                 situationName = situationName.charAt(0).toUpperCase() + situationName.slice(1);
+                 const situationName = normalizeSituation(rawSit); 
+                 const criticality = normalizeCriticality(getValue(r, 'criticidade'));
                  
                  const sitExists = tempSettings.situations.find(s => s.name.toLowerCase() === situationName.toLowerCase());
                  if (!sitExists) {
@@ -642,7 +666,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                     location: getValue(r, 'local') || 'Geral',
                     responsible_id: responsibleId,
                     situation: situationName,
-                    criticality: (getValue(r, 'criticidade') as any) || 'Média',
+                    criticality: criticality,
                     materials: [],
                     call_date: normalizeDate(getValue(r, 'data')),
                     created_at: new Date().toISOString()
@@ -691,12 +715,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
     } catch (error: any) {
         console.error("Import Error Full Object:", error);
-        let errorMessage = 'Erro desconhecido';
-        if (typeof error === 'string') errorMessage = error;
-        else if (error instanceof Error) errorMessage = error.message;
-        else if (typeof error === 'object' && error !== null) errorMessage = (error as any).message || JSON.stringify(error);
-        
-        return { success: false, message: 'Erro ao salvar no banco de dados: ' + errorMessage };
+        return { success: false, message: 'Erro ao salvar: ' + (error.message || 'Desconhecido') };
     }
   };
 

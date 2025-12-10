@@ -17,14 +17,20 @@ export const TaskList = () => {
   
   const [editingTask, setEditingTask] = useState<Task | undefined>(undefined);
 
-  const getResponsibleName = (id: string) => settings.responsibles.find(r => r.id === id)?.name || 'N/A';
-  const getSectorName = (id: string) => settings.sectors.find(s => s.id === id)?.name || 'N/A';
-  const getServiceName = (id: string) => settings.services.find(s => s.id === id)?.name || 'Serviço';
-  const getTowerName = (id: string) => settings.towers.find(t => t.id === id)?.name || 'Torre';
+  // Helper para buscar nomes (com fallback caso o ID seja o próprio nome importado)
+  const findName = (list: any[], id: string, defaultLabel: string) => {
+      const found = list.find(i => i.id === id);
+      return found ? found.name : (id || defaultLabel);
+  };
+
+  const getResponsibleName = (id: string) => findName(settings.responsibles, id, 'N/A');
+  const getSectorName = (id: string) => findName(settings.sectors, id, 'N/A');
+  const getServiceName = (id: string) => findName(settings.services, id, 'Serviço');
+  const getTowerName = (id: string) => findName(settings.towers, id, 'Torre');
   
   const getMaterialNames = (ids: string[]) => {
       if (!ids || ids.length === 0) return null;
-      return ids.map(id => settings.materials.find(m => m.id === id)?.name).filter(Boolean).join(', ');
+      return ids.map(id => settings.materials.find(m => m.id === id)?.name || id).filter(Boolean).join(', ');
   };
 
   const handleEdit = (task: Task) => {
@@ -57,34 +63,61 @@ export const TaskList = () => {
       reader.readAsText(file);
   };
 
+  // Helper de Data Segura
+  const parseTaskDate = (dateString: string) => {
+      if (!dateString) return new Date(0); // Data muito antiga
+      // Tenta ISO
+      let d = new Date(dateString);
+      if (!isNaN(d.getTime())) return d;
+      
+      // Tenta BR (DD/MM/YYYY)
+      if (dateString.includes('/')) {
+          const [day, month, year] = dateString.split('/');
+          d = new Date(Number(year), Number(month) - 1, Number(day));
+          if (!isNaN(d.getTime())) return d;
+      }
+      return new Date(0);
+  };
+
   const filteredTasks = tasks.filter(task => {
-    // 1. Search Filter
+    const term = searchTerm.toLowerCase().trim();
+    
+    // 1. Search Filter (Robust)
     const serviceName = getServiceName(task.serviceId).toLowerCase();
     const towerName = getTowerName(task.towerId).toLowerCase();
-    const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          task.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          serviceName.includes(searchTerm.toLowerCase()) ||
-                          towerName.includes(searchTerm.toLowerCase());
+    const title = (task.title || '').toLowerCase();
+    const location = (task.location || '').toLowerCase();
+    const responsible = getResponsibleName(task.responsibleId).toLowerCase();
+
+    const matchesSearch = term === '' || 
+                          title.includes(term) || 
+                          location.includes(term) ||
+                          serviceName.includes(term) ||
+                          towerName.includes(term) ||
+                          responsible.includes(term);
     
-    // 2. Situation Filter
-    const matchesSituation = filterSituation === 'Todos' || task.situation === filterSituation;
+    // 2. Situation Filter (Normalization: "Em Andamento" == "EM ANDAMENTO")
+    const taskSit = (task.situation || '').toLowerCase().trim();
+    const filterSit = filterSituation.toLowerCase().trim();
+    const matchesSituation = filterSituation === 'Todos' || taskSit === filterSit;
 
     // 3. Date Filter (Based on Call Date)
     let matchesDate = true;
     if (dateFilter !== 'all') {
-        const taskDate = new Date(task.callDate);
+        const taskDate = parseTaskDate(task.callDate);
+        taskDate.setHours(0,0,0,0);
+        
         const now = new Date();
+        now.setHours(0,0,0,0);
         
         if (dateFilter === 'month') {
             matchesDate = taskDate.getMonth() === now.getMonth() && taskDate.getFullYear() === now.getFullYear();
         } else if (dateFilter === 'week') {
             const startOfWeek = new Date(now);
             startOfWeek.setDate(now.getDate() - now.getDay()); // Sunday
-            startOfWeek.setHours(0, 0, 0, 0);
             
             const endOfWeek = new Date(startOfWeek);
             endOfWeek.setDate(startOfWeek.getDate() + 6); // Saturday
-            endOfWeek.setHours(23, 59, 59, 999);
 
             matchesDate = taskDate >= startOfWeek && taskDate <= endOfWeek;
         }
@@ -93,42 +126,29 @@ export const TaskList = () => {
     return matchesSearch && matchesSituation && matchesDate;
   });
 
+  // Robust Status Coloring (Case Insensitive)
   const getStatusColor = (status: string) => {
-    switch(status) {
-      case 'Concluído': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
-      case 'Em Andamento': return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300';
-      case 'Cancelado': return 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
-      default: return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'; // Aberto
-    }
+    const s = status?.toLowerCase() || '';
+    if (s.includes('conclu')) return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800';
+    if (s.includes('andamento') || s.includes('execu')) return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800';
+    if (s.includes('cancel')) return 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-600';
+    return 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'; // Aberto/Outros
   };
 
+  // Robust Criticality Coloring
   const getCriticalityColor = (crit: string) => {
-    switch(crit) {
-        case 'Alta': return 'text-red-600 bg-red-50 border-red-100 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/30';
-        case 'Média': return 'text-amber-600 bg-amber-50 border-amber-100 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900/30';
-        default: return 'text-slate-600 bg-slate-50 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
-    }
+    const c = crit?.toLowerCase() || '';
+    if (c.includes('alt') || c.includes('high') || c.includes('urge') || c.includes('crit')) return 'text-red-600 bg-red-50 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900/50 shadow-[0_0_10px_rgba(239,68,68,0.1)]';
+    if (c.includes('méd') || c.includes('med')) return 'text-amber-600 bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900/50';
+    return 'text-emerald-600 bg-emerald-50 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-900/50'; // Baixa/Low
   };
 
   // Short Date Formatter (DD/MM)
   const formatShortDate = (dateString?: string) => {
       if (!dateString || dateString.trim() === '') return '-';
-      
-      try {
-        // Handle ISO or manual input
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) {
-             // Try split if DD/MM/YYYY
-             if(dateString.includes('/')) {
-                 const parts = dateString.split('/');
-                 if(parts.length >= 2) return `${parts[0]}/${parts[1]}`;
-             }
-             return '-';
-        }
-        return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-      } catch (e) {
-          return '-';
-      }
+      const d = parseTaskDate(dateString);
+      if (d.getTime() === 0) return dateString.substring(0, 5); // Fallback to string chop if parse fails completely
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   };
 
   const hasActiveFilters = searchTerm !== '' || filterSituation !== 'Todos' || dateFilter !== 'all';
@@ -163,7 +183,7 @@ export const TaskList = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               type="text" 
-              placeholder="Buscar por serviço, torre, local..." 
+              placeholder="Buscar por serviço, torre, local, responsável..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400"
@@ -303,14 +323,14 @@ export const TaskList = () => {
                         
                             {/* Situation */}
                             <td className="px-3 py-3 text-center align-top">
-                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border border-transparent ${getStatusColor(task.situation)}`}>
+                                <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase tracking-wider ${getStatusColor(task.situation)}`}>
                                     {task.situation}
                                 </span>
                             </td>
 
                             {/* Criticality */}
                             <td className="px-3 py-3 text-center align-top">
-                                <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${getCriticalityColor(task.criticality)}`}>
+                                <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold border uppercase tracking-wider ${getCriticalityColor(task.criticality)}`}>
                                     {task.criticality}
                                 </span>
                             </td>
