@@ -1,13 +1,13 @@
 import React from 'react';
 import { useLocation, Link, Outlet } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, Settings, LogOut, Bell, Menu, Building2, Moon, Sun, Users, CalendarDays, PaintBucket, ShoppingCart } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Settings, LogOut, Bell, Menu, Building2, Moon, Sun, Users, CalendarDays, PaintBucket, ShoppingCart, RefreshCcw, Wifi, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
 
 export const Layout = () => {
   const { user, logout } = useAuth();
-  const { tasks } = useData();
+  const { tasks, isLoading, refreshData, lastUpdated } = useData();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
@@ -29,6 +29,10 @@ export const Layout = () => {
   if (user?.role === 'admin') {
     navItems.push({ path: '/settings', label: 'Configurações', icon: Settings });
   }
+
+  const handleManualSync = async () => {
+      await refreshData();
+  };
 
   return (
     <div className="flex h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-sans overflow-hidden transition-colors duration-200">
@@ -88,9 +92,9 @@ export const Layout = () => {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden relative">
         {/* Header (Mobile & Desktop) */}
-        <header className="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-6 md:justify-end">
+        <header className="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-6 md:justify-end shrink-0">
            <button 
              className="md:hidden text-slate-500 dark:text-slate-300 hover:text-slate-800"
              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -118,11 +122,38 @@ export const Layout = () => {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100 dark:bg-slate-900">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100 dark:bg-slate-900 pb-20">
            <div className="max-w-7xl mx-auto">
              <Outlet />
            </div>
         </main>
+
+        {/* Persistent Bottom Status Bar */}
+        <div className="h-12 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between px-6 shrink-0 z-10">
+            <div className="flex items-center gap-2">
+                <span className="flex items-center justify-center w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium hidden sm:inline-block">
+                    Sistema Online
+                </span>
+                <span className="text-xs text-slate-400 dark:text-slate-500 border-l border-slate-200 dark:border-slate-700 pl-2 ml-2 hidden sm:inline-block">
+                    Última sincronização: {lastUpdated.toLocaleTimeString()}
+                </span>
+            </div>
+            
+            <div className="flex items-center gap-4">
+                <span className="text-xs text-slate-400 hidden md:inline">
+                    Todas as alterações são salvas automaticamente.
+                </span>
+                <button 
+                   onClick={handleManualSync}
+                   disabled={isLoading}
+                   className="flex items-center gap-2 bg-slate-100 dark:bg-slate-700 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50"
+                >
+                    <RefreshCcw size={14} className={isLoading ? 'animate-spin' : ''} />
+                    {isLoading ? 'Sincronizando...' : 'Sincronizar / Salvar'}
+                </button>
+            </div>
+        </div>
       </div>
     </div>
   );

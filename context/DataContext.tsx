@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Task, SettingsState, CatalogItem, Visit, ScheduleItem, MonthlyScheduleItem, PaintingProject, PurchaseRequest } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -11,6 +11,8 @@ interface DataContextType {
   purchases: PurchaseRequest[];
   settings: SettingsState;
   isLoading: boolean;
+  lastUpdated: Date;
+  refreshData: () => Promise<void>;
   
   // Tasks
   addTask: (task: Omit<Task, 'id' | 'createdAt'>) => void;
@@ -79,10 +81,10 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
   const [purchases, setPurchases] = useState<PurchaseRequest[]>([]);
   const [settings, setSettings] = useState<SettingsState>(initialSettings);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   // --- FETCH DATA FROM SUPABASE ---
-  useEffect(() => {
-    const fetchData = async () => {
+  const refreshData = useCallback(async () => {
       setIsLoading(true);
       try {
         const [
@@ -114,7 +116,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         ]);
 
         if (tasksRes.data) {
-            // Map keys from snake_case to camelCase manually for frontend compatibility
             const mappedTasks = tasksRes.data.map((t: any) => ({
                 id: t.id,
                 title: t.title,
@@ -149,15 +150,17 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
             situations: situationsRes.data || []
         });
 
+        setLastUpdated(new Date());
       } catch (error) {
         console.error('Error fetching data from Supabase:', error);
       } finally {
         setIsLoading(false);
       }
-    };
-
-    fetchData();
   }, []);
+
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
 
   // --- TASKS ---
   const addTask = async (newTask: Omit<Task, 'id' | 'createdAt'>) => {
@@ -182,20 +185,16 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         created_at: now
     };
 
-    // Optimistic Update
     const feTask = { ...newTask, id: tempId, createdAt: now };
     setTasks((prev) => [feTask, ...prev]);
 
     const { error } = await supabase.from('tasks').insert(dbTask);
-    if (error) {
-        console.error('Supabase Error:', error);
-    }
+    if (error) console.error('Supabase Error:', error);
   };
 
   const updateTask = async (id: string, updates: Partial<Task>) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
 
-    // Map updates to snake_case
     const dbUpdates: any = {};
     if (updates.title) dbUpdates.title = updates.title;
     if (updates.sectorId) dbUpdates.sector_id = updates.sectorId;
@@ -496,10 +495,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
         // Helper: Queue new items for insertion
         const findOrAdd = (category: keyof SettingsState, rawValue: string): string => {
-             // Handle empty value case: use existing default or create "Geral"
              if (!rawValue) {
                 if (tempSettings[category].length > 0) return tempSettings[category][0].id;
-                // If list is empty and no value provided, create "Geral"
                 const defaultExists = pendingSettingsInserts[category].find(i => i.name === 'Geral');
                 if (defaultExists) return defaultExists.id;
 
@@ -510,16 +507,12 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
             }
 
             const cleanVal = rawValue.trim();
-            
-            // Check existing confirmed settings
             const matchId = tempSettings[category].find(i => i.id === cleanVal || i.name.toLowerCase() === cleanVal.toLowerCase());
             if (matchId) return matchId.id;
 
-            // Check pending inserts (avoid duplicates in same batch)
             const pendingMatch = pendingSettingsInserts[category].find(i => i.name.toLowerCase() === cleanVal.toLowerCase());
             if (pendingMatch) return pendingMatch.id;
 
-            // Create new
             const newId = generateId('Cat-');
             const newItem = { id: newId, name: cleanVal };
             pendingSettingsInserts[category].push(newItem);
@@ -538,7 +531,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                 return_date: getValue(r, 'retorno') || '-'
             }));
             
-            // Wait for Supabase
             const { error } = await supabase.from('visits').insert(newVisits);
             if (error) throw error;
             
@@ -616,9 +608,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
              count = newMonthly.length;
 
         } else {
-             // --- TASKS IMPORT (Requires Settings Sync) ---
-             
-             // 1. Prepare objects locally (calls findOrAdd which fills pendingSettingsInserts)
+             // TASKS IMPORT
              const newTasks = rows.map(r => {
                  const rawService = getValue(r, 'servico') || getValue(r, 'tipo');
                  const rawTower = getValue(r, 'torre');
@@ -631,11 +621,9 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                  const sectorId = findOrAdd('sectors', rawSector || 'Geral');
                  const responsibleId = findOrAdd('responsibles', rawResp || 'Não Identificado');
                  
-                 // Situations are special, we don't assume defaults as easily, but logic is same
                  let situationName = rawSit ? rawSit.trim() : 'Aberto';
                  situationName = situationName.charAt(0).toUpperCase() + situationName.slice(1);
                  
-                 // Manually handle situation to ensure it's in pending if new
                  const sitExists = tempSettings.situations.find(s => s.name.toLowerCase() === situationName.toLowerCase());
                  if (!sitExists) {
                      const pendingSit = pendingSettingsInserts['situations'].find(s => s.name.toLowerCase() === situationName.toLowerCase());
@@ -661,34 +649,24 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                  };
              });
 
-             // 2. Batch Insert NEW Settings (CRITICAL: Must happen BEFORE Task Insert to satisfy Foreign Keys)
              let hasUpdates = false;
              await Promise.all(
                  (Object.keys(pendingSettingsInserts) as Array<keyof SettingsState>).map(async (key) => {
                      const items = pendingSettingsInserts[key];
                      if (items.length > 0) {
                          const { error } = await supabase.from(key).insert(items);
-                         if (error) {
-                             console.error(`Error inserting new ${key}:`, error);
-                             throw new Error(`Falha ao criar novos cadastros para ${key}: ${error.message}`);
-                         }
-                         // Update local cache
+                         if (error) throw new Error(`Falha ao criar novos cadastros para ${key}: ${error.message}`);
                          tempSettings[key] = [...tempSettings[key], ...items];
                          hasUpdates = true;
                      }
                  })
              );
 
-             // 3. Update local settings state if needed
-             if (hasUpdates) {
-                 setSettings(tempSettings);
-             }
+             if (hasUpdates) setSettings(tempSettings);
 
-             // 4. Batch Insert Tasks
              const { error } = await supabase.from('tasks').insert(newTasks);
              if (error) throw error;
 
-             // 5. Update Local Tasks State
              const feTasks = newTasks.map(t => ({
                  id: t.id,
                  title: t.title,
@@ -713,17 +691,10 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
     } catch (error: any) {
         console.error("Import Error Full Object:", error);
-        
-        // Robust Error Extraction for UI
         let errorMessage = 'Erro desconhecido';
-        if (typeof error === 'string') {
-            errorMessage = error;
-        } else if (error instanceof Error) {
-            errorMessage = error.message;
-        } else if (typeof error === 'object' && error !== null) {
-            // Handle Supabase specific error structure (PostgrestError)
-            errorMessage = (error as any).message || (error as any).error_description || (error as any).details || JSON.stringify(error);
-        }
+        if (typeof error === 'string') errorMessage = error;
+        else if (error instanceof Error) errorMessage = error.message;
+        else if (typeof error === 'object' && error !== null) errorMessage = (error as any).message || JSON.stringify(error);
         
         return { success: false, message: 'Erro ao salvar no banco de dados: ' + errorMessage };
     }
@@ -731,7 +702,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   return (
     <DataContext.Provider value={{ 
-        tasks, visits, schedule, monthlySchedule, paintingProjects, purchases, settings, isLoading,
+        tasks, visits, schedule, monthlySchedule, paintingProjects, purchases, settings, isLoading, lastUpdated, refreshData,
         addTask, updateTask, deleteTask, 
         addVisit, updateVisit, deleteVisit,
         addScheduleItem, updateScheduleItem, deleteScheduleItem,
