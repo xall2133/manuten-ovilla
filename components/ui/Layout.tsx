@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, Link, Outlet } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, Settings, LogOut, Bell, Menu, Hexagon, Moon, Sun, Users, CalendarDays, PaintBucket, ShoppingCart, RefreshCcw, Wifi, Zap } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Settings, LogOut, Bell, Menu, Hexagon, Moon, Sun, Users, CalendarDays, PaintBucket, ShoppingCart, RefreshCcw, Wifi, Zap, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -11,6 +11,9 @@ export const Layout = () => {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+
+  // Versão do App (Incrementar manualmente para confirmar deploy)
+  const APP_VERSION = "v1.5";
 
   // Simple logic to count active high-criticality tasks for notification
   const alertCount = tasks.filter(t => t.criticality === 'Alta' && t.situation !== 'Concluído').length;
@@ -34,6 +37,18 @@ export const Layout = () => {
       await refreshData();
   };
 
+  const handleHardReload = () => {
+      // Limpa caches e recarrega
+      if ('caches' in window) {
+          caches.keys().then((names) => {
+              names.forEach((name) => {
+                  caches.delete(name);
+              });
+          });
+      }
+      window.location.reload();
+  };
+
   return (
     <div className="flex h-screen bg-slate-950 bg-grid-pattern text-slate-100 font-sans overflow-hidden transition-colors duration-200">
       {/* Sidebar */}
@@ -48,7 +63,10 @@ export const Layout = () => {
                 Vila Privilege
              </h1>
           </div>
-          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Gestão Predial</p>
+          <div className="flex items-center gap-2">
+             <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Gestão Predial</p>
+             <span className="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-white/5">{APP_VERSION}</span>
+          </div>
         </div>
 
         <nav className="p-4 space-y-1 flex-1">
@@ -150,6 +168,15 @@ export const Layout = () => {
             </div>
             
             <div className="flex items-center gap-4">
+                <button 
+                   onClick={handleHardReload}
+                   className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
+                   title="Forçar recarregamento da aplicação"
+                >
+                    <RefreshCw size={12} />
+                    RELOAD APP
+                </button>
+                <div className="w-px h-3 bg-slate-700 mx-1"></div>
                 <button 
                    onClick={handleManualSync}
                    disabled={isLoading}

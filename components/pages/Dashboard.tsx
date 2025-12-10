@@ -77,13 +77,13 @@ export const Dashboard = () => {
     (t.situation || '').toLowerCase().includes('conclu')
   ).length;
 
-  // Filtra TODAS as críticas (Alta/Urgente)
+  // Filtra TODAS as críticas (Alta/Urgente) INDEPENDENTE DO STATUS para o número principal
   const allHighCritTasks = filteredTasks.filter(t => {
       const crit = (t.criticality || '').toLowerCase();
       return crit.includes('alt') || crit.includes('high') || crit.includes('urge') || crit.includes('crít') || crit.includes('crit');
   });
 
-  const highCritCount = allHighCritTasks.length;
+  const highCritTotal = allHighCritTasks.length;
   
   // Quantas dessas críticas ainda não foram concluídas?
   const highCritPendingCount = allHighCritTasks.filter(t => 
@@ -114,11 +114,8 @@ export const Dashboard = () => {
   // Group sectors (Case Insensitive)
   const sectorMap = new Map<string, number>();
   filteredTasks.forEach(t => {
-      // Tenta achar o nome do setor pelo ID nas configurações, ou usa o ID como fallback
       const sectorConfig = settings.sectors.find(s => s.id === t.sectorId);
       const name = sectorConfig ? sectorConfig.name : (t.sectorId || 'Geral');
-      
-      // Normaliza nome para agrupar "Eletrica" e "ELETRICA"
       const normalizedName = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
       sectorMap.set(normalizedName, (sectorMap.get(normalizedName) || 0) + 1);
   });
@@ -126,7 +123,7 @@ export const Dashboard = () => {
   const sectorData = Array.from(sectorMap.entries())
     .map(([name, tarefas]) => ({ name, tarefas }))
     .sort((a, b) => b.tarefas - a.tarefas)
-    .slice(0, 8); // Top 8 setores
+    .slice(0, 8); 
 
   // --- Helper Logic for Bottom Section ---
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -174,7 +171,7 @@ export const Dashboard = () => {
              onChange={(e) => setDateRange(e.target.value)}
              className="bg-slate-900 border border-slate-700 text-slate-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 hover:bg-slate-800 transition-colors cursor-pointer"
            >
-             <option value="all">Todo o período</option>
+             <option value="all">Todo o período (Histórico)</option>
              <option value="30">Últimos 30 dias</option>
              <option value="7">Esta semana</option>
              <option value="1">Hoje</option>
@@ -209,12 +206,12 @@ export const Dashboard = () => {
           subText="Finalizadas"
         />
         <StatCard 
-          title="Criticidade Alta" 
-          value={highCritCount} 
+          title="Criticidade Alta (Total)" 
+          value={highCritTotal} 
           icon={AlertTriangle} 
           colorClass="text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)]" 
           gradient="from-red-500 to-orange-500"
-          subText={highCritPendingCount > 0 ? `${highCritPendingCount} Ativas / Pendentes` : 'Tudo resolvido!'}
+          subText={highCritPendingCount > 0 ? `${highCritPendingCount} Ativas / Pendentes` : '0 Pendentes agora'}
           subTextColor={highCritPendingCount > 0 ? 'text-red-400' : 'text-emerald-500'}
         />
       </div>
@@ -297,7 +294,6 @@ export const Dashboard = () => {
         </h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-            {/* ... (Cards mantidos iguais ao anterior para brevidade, mas funcionais) ... */}
             <div className="bg-slate-900/40 backdrop-blur-sm p-5 rounded-2xl border border-white/5 flex flex-col hover:border-blue-500/30 transition-colors">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2 text-slate-200 font-semibold font-display">
