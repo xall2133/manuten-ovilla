@@ -13,7 +13,7 @@ export const Layout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   // Versão do App (Incrementar manualmente para confirmar deploy)
-  const APP_VERSION = "v1.5";
+  const APP_VERSION = "v1.8";
 
   // Simple logic to count active high-criticality tasks for notification
   const alertCount = tasks.filter(t => t.criticality === 'Alta' && t.situation !== 'Concluído').length;

@@ -19,7 +19,9 @@ export const Purchases = () => {
   };
 
   const handleDelete = (id: string) => {
-      deletePurchase(id);
+      if(window.confirm('Deseja realmente excluir esta solicitação de compra?')) {
+          deletePurchase(id);
+      }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

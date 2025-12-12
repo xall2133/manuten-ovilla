@@ -19,7 +19,9 @@ export const Painting = () => {
   };
 
   const handleDelete = (id: string) => {
-      deletePaintingProject(id);
+      if(window.confirm('Deseja realmente excluir este projeto de pintura?')) {
+          deletePaintingProject(id);
+      }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

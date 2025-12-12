@@ -20,7 +20,9 @@ export const Visits = () => {
   };
 
   const handleDelete = (id: string) => {
-      deleteVisit(id);
+      if(window.confirm("ATENÇÃO: Deseja realmente excluir esta visita? A ação não poderá ser desfeita.")) {
+          deleteVisit(id);
+      }
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -124,6 +124,9 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           supabase.from('situations').select('*')
         ]);
 
+        if (tasksRes.error) console.error("Error fetching tasks:", tasksRes.error);
+        
+        // --- MAPEAMENTO: DO BANCO (snake_case) PARA O APP (camelCase) ---
         if (tasksRes.data) {
             const mappedTasks = tasksRes.data.map((t: any) => ({
                 id: t.id,
@@ -135,7 +138,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                 responsibleId: t.responsible_id,
                 situation: t.situation,
                 criticality: t.criticality,
-                type: t.maintenance_type || 'Corretiva', // Map DB column to FE
+                type: t.maintenance_type || 'Corretiva',
                 materials: t.materials || [],
                 callDate: t.call_date,
                 startDate: t.start_date,
@@ -145,7 +148,13 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
             }));
             setTasks(mappedTasks);
         }
-        if (visitsRes.data) setVisits(visitsRes.data.map((v:any) => ({...v, returnDate: v.return_date})));
+        
+        if (visitsRes.data) {
+            setVisits(visitsRes.data.map((v:any) => ({
+                ...v, 
+                returnDate: v.return_date 
+            })));
+        }
         
         if (scheduleRes.data) {
              setSchedule(scheduleRes.data.map((s:any) => ({
@@ -174,8 +183,23 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
             })));
         }
 
-        if (paintingRes.data) setPaintingProjects(paintingRes.data.map((p:any) => ({...p, endDateForecast: p.end_date_forecast, startDate: p.start_date, paintDetails: p.paint_details})));
-        if (purchasesRes.data) setPurchases(purchasesRes.data.map((p:any) => ({...p, requestDate: p.request_date, approvalDate: p.approval_date, entryDate: p.entry_date})));
+        if (paintingRes.data) {
+            setPaintingProjects(paintingRes.data.map((p:any) => ({
+                ...p, 
+                endDateForecast: p.end_date_forecast, 
+                startDate: p.start_date, 
+                paintDetails: p.paint_details
+            })));
+        }
+
+        if (purchasesRes.data) {
+            setPurchases(purchasesRes.data.map((p:any) => ({
+                ...p, 
+                requestDate: p.request_date, 
+                approvalDate: p.approval_date, 
+                entryDate: p.entry_date
+            })));
+        }
 
         setSettings({
             sectors: sectorsRes.data || [],
@@ -188,7 +212,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
         setLastUpdated(new Date());
       } catch (error) {
-        console.error('Error fetching data from Supabase:', error);
+        console.error('CRITICAL: Error fetching data from Supabase:', error);
       } finally {
         setIsLoading(false);
       }
@@ -203,6 +227,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     const tempId = generateId('T-');
     const now = new Date().toISOString();
     
+    // Mapeamento: App (camelCase) -> Banco (snake_case)
     const dbTask = {
         id: tempId,
         title: newTask.title,
@@ -226,33 +251,47 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     setTasks((prev) => [feTask, ...prev]);
 
     const { error } = await supabase.from('tasks').insert(dbTask);
-    if (error) console.error('Supabase Error:', error);
+    
+    if (error) {
+        console.error('Supabase Error (Task):', error);
+        setTasks((prev) => prev.filter(t => t.id !== tempId));
+        alert(`ERRO AO SALVAR TAREFA: ${error.message}.`);
+    }
   };
 
   const updateTask = async (id: string, updates: Partial<Task>) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
 
     const dbUpdates: any = {};
-    if (updates.title) dbUpdates.title = updates.title;
-    if (updates.sectorId) dbUpdates.sector_id = updates.sectorId;
-    if (updates.serviceId) dbUpdates.service_id = updates.serviceId;
-    if (updates.towerId) dbUpdates.tower_id = updates.towerId;
-    if (updates.location) dbUpdates.location = updates.location;
-    if (updates.responsibleId) dbUpdates.responsible_id = updates.responsibleId;
-    if (updates.situation) dbUpdates.situation = updates.situation;
-    if (updates.criticality) dbUpdates.criticality = updates.criticality;
-    if (updates.type) dbUpdates.maintenance_type = updates.type;
-    if (updates.materials) dbUpdates.materials = updates.materials;
-    if (updates.callDate) dbUpdates.call_date = updates.callDate;
-    if (updates.startDate) dbUpdates.start_date = updates.startDate;
-    if (updates.endDate) dbUpdates.end_date = updates.endDate;
+    // Mapeamento manual para garantir nomes corretos
+    if (updates.title !== undefined) dbUpdates.title = updates.title;
+    if (updates.sectorId !== undefined) dbUpdates.sector_id = updates.sectorId;
+    if (updates.serviceId !== undefined) dbUpdates.service_id = updates.serviceId;
+    if (updates.towerId !== undefined) dbUpdates.tower_id = updates.towerId;
+    if (updates.location !== undefined) dbUpdates.location = updates.location;
+    if (updates.responsibleId !== undefined) dbUpdates.responsible_id = updates.responsibleId;
+    if (updates.situation !== undefined) dbUpdates.situation = updates.situation;
+    if (updates.criticality !== undefined) dbUpdates.criticality = updates.criticality;
+    if (updates.type !== undefined) dbUpdates.maintenance_type = updates.type;
+    if (updates.materials !== undefined) dbUpdates.materials = updates.materials;
+    if (updates.callDate !== undefined) dbUpdates.call_date = updates.callDate;
+    if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate;
+    if (updates.endDate !== undefined) dbUpdates.end_date = updates.endDate;
 
-    await supabase.from('tasks').update(dbUpdates).eq('id', id);
+    const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
+    if (error) {
+        alert(`Erro ao atualizar tarefa: ${error.message}`);
+        refreshData(); 
+    }
   };
 
   const deleteTask = async (id: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
-    await supabase.from('tasks').delete().eq('id', id);
+    const { error } = await supabase.from('tasks').delete().eq('id', id);
+    if (error) {
+        alert(`Erro ao excluir: ${error.message}`);
+        refreshData();
+    }
   };
 
   // --- VISITS ---
@@ -261,7 +300,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
      const newItem = { ...item, id: newId };
      setVisits(prev => [newItem, ...prev]);
      
-     await supabase.from('visits').insert({
+     const { error } = await supabase.from('visits').insert({
          id: newId,
          tower: item.tower,
          unit: item.unit,
@@ -271,19 +310,38 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
          status: item.status,
          return_date: item.returnDate
      });
+
+     if (error) {
+         setVisits(prev => prev.filter(v => v.id !== newId));
+         alert(`ERRO AO SALVAR VISITA: ${error.message}`);
+     }
   };
+
   const updateVisit = async (id: string, updates: Partial<Visit>) => {
      setVisits(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
-     const dbUpdates: any = {...updates};
-     if (updates.returnDate) {
-         dbUpdates.return_date = updates.returnDate;
-         delete dbUpdates.returnDate;
+     
+     const dbUpdates: any = {};
+     if (updates.tower !== undefined) dbUpdates.tower = updates.tower;
+     if (updates.unit !== undefined) dbUpdates.unit = updates.unit;
+     if (updates.situation !== undefined) dbUpdates.situation = updates.situation;
+     if (updates.time !== undefined) dbUpdates.time = updates.time;
+     if (updates.collaborator !== undefined) dbUpdates.collaborator = updates.collaborator;
+     if (updates.status !== undefined) dbUpdates.status = updates.status;
+     if (updates.returnDate !== undefined) dbUpdates.return_date = updates.returnDate;
+
+     const { error } = await supabase.from('visits').update(dbUpdates).eq('id', id);
+     if (error) {
+         alert(`Erro ao atualizar visita: ${error.message}`);
+         refreshData();
      }
-     await supabase.from('visits').update(dbUpdates).eq('id', id);
   };
   const deleteVisit = async (id: string) => {
      setVisits(prev => prev.filter(v => v.id !== id));
-     await supabase.from('visits').delete().eq('id', id);
+     const { error } = await supabase.from('visits').delete().eq('id', id);
+     if (error) {
+         alert(`Erro ao excluir visita: ${error.message}`);
+         refreshData();
+     }
   };
 
   // --- SCHEDULE (WEEKLY) ---
@@ -291,25 +349,44 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       const newId = generateId('S-');
       const newItem = { ...item, id: newId };
       setSchedule(prev => [newItem, ...prev]);
-      await supabase.from('schedule').insert({
-          ...newItem,
+      
+      const dbItem = {
+          id: newId,
+          shift: item.shift,
+          monday: item.monday,
+          tuesday: item.tuesday,
+          wednesday: item.wednesday,
+          thursday: item.thursday,
+          friday: item.friday,
+          saturday: item.saturday,
           work_start_date: item.workStartDate,
           work_end_date: item.workEndDate,
           work_notice_date: item.workNoticeDate
-      });
+      };
+
+      const { error } = await supabase.from('schedule').insert(dbItem);
+
+      if (error) {
+          setSchedule(prev => prev.filter(s => s.id !== newId));
+          alert(`ERRO AO SALVAR CRONOGRAMA: ${error.message}`);
+      }
   };
+  
   const updateScheduleItem = async (id: string, updates: Partial<ScheduleItem>) => {
       setSchedule(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
       const dbUpdates: any = { ...updates };
+      // Conversão
       if(updates.workStartDate !== undefined) { dbUpdates.work_start_date = updates.workStartDate; delete dbUpdates.workStartDate; }
       if(updates.workEndDate !== undefined) { dbUpdates.work_end_date = updates.workEndDate; delete dbUpdates.workEndDate; }
       if(updates.workNoticeDate !== undefined) { dbUpdates.work_notice_date = updates.workNoticeDate; delete dbUpdates.workNoticeDate; }
 
-      await supabase.from('schedule').update(dbUpdates).eq('id', id);
+      const { error } = await supabase.from('schedule').update(dbUpdates).eq('id', id);
+      if (error) { alert(`Erro ao atualizar: ${error.message}`); refreshData(); }
   };
   const deleteScheduleItem = async (id: string) => {
       setSchedule(prev => prev.filter(s => s.id !== id));
-      await supabase.from('schedule').delete().eq('id', id);
+      const { error } = await supabase.from('schedule').delete().eq('id', id);
+      if (error) { alert(`Erro ao excluir: ${error.message}`); refreshData(); }
   };
 
   // --- SCHEDULE (MONTHLY) ---
@@ -317,13 +394,27 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       const newId = generateId('M-');
       const newItem = { ...item, id: newId };
       setMonthlySchedule(prev => [newItem, ...prev]);
-      await supabase.from('monthly_schedule').insert({
-          ...newItem,
+      
+      const dbItem = {
+          id: newId,
+          shift: item.shift,
+          week1: item.week1,
+          week2: item.week2,
+          week3: item.week3,
+          week4: item.week4,
           work_start_date: item.workStartDate,
           work_end_date: item.workEndDate,
           work_notice_date: item.workNoticeDate
-      });
+      };
+
+      const { error } = await supabase.from('monthly_schedule').insert(dbItem);
+      
+      if (error) {
+          setMonthlySchedule(prev => prev.filter(s => s.id !== newId));
+          alert(`ERRO AO SALVAR MENSAL: ${error.message}`);
+      }
   };
+  
   const updateMonthlyScheduleItem = async (id: string, updates: Partial<MonthlyScheduleItem>) => {
       setMonthlySchedule(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
       const dbUpdates: any = { ...updates };
@@ -331,11 +422,13 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       if(updates.workEndDate !== undefined) { dbUpdates.work_end_date = updates.workEndDate; delete dbUpdates.workEndDate; }
       if(updates.workNoticeDate !== undefined) { dbUpdates.work_notice_date = updates.workNoticeDate; delete dbUpdates.workNoticeDate; }
 
-      await supabase.from('monthly_schedule').update(dbUpdates).eq('id', id);
+      const { error } = await supabase.from('monthly_schedule').update(dbUpdates).eq('id', id);
+      if (error) { alert(`Erro ao atualizar: ${error.message}`); refreshData(); }
   };
   const deleteMonthlyScheduleItem = async (id: string) => {
       setMonthlySchedule(prev => prev.filter(s => s.id !== id));
-      await supabase.from('monthly_schedule').delete().eq('id', id);
+      const { error } = await supabase.from('monthly_schedule').delete().eq('id', id);
+      if (error) { alert(`Erro ao excluir: ${error.message}`); refreshData(); }
   };
 
   // --- SCHEDULE (THIRD PARTY) ---
@@ -343,13 +436,26 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       const newId = generateId('TP-');
       const newItem = { ...item, id: newId };
       setThirdPartySchedule(prev => [newItem, ...prev]);
-      await supabase.from('third_party_schedule').insert({
-          ...newItem,
+      
+      const dbItem = {
+          id: newId,
+          company: item.company,
+          service: item.service,
+          frequency: item.frequency,
+          contact: item.contact,
           work_start_date: item.workStartDate,
           work_end_date: item.workEndDate,
           work_notice_date: item.workNoticeDate
-      });
+      };
+
+      const { error } = await supabase.from('third_party_schedule').insert(dbItem);
+
+      if (error) {
+          setThirdPartySchedule(prev => prev.filter(s => s.id !== newId));
+          alert(`ERRO AO SALVAR TERCEIRO: ${error.message}`);
+      }
   };
+
   const updateThirdPartyScheduleItem = async (id: string, updates: Partial<ThirdPartyScheduleItem>) => {
       setThirdPartySchedule(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
       const dbUpdates: any = { ...updates };
@@ -357,11 +463,13 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       if(updates.workEndDate !== undefined) { dbUpdates.work_end_date = updates.workEndDate; delete dbUpdates.workEndDate; }
       if(updates.workNoticeDate !== undefined) { dbUpdates.work_notice_date = updates.workNoticeDate; delete dbUpdates.workNoticeDate; }
 
-      await supabase.from('third_party_schedule').update(dbUpdates).eq('id', id);
+      const { error } = await supabase.from('third_party_schedule').update(dbUpdates).eq('id', id);
+      if (error) { alert(`Erro ao atualizar: ${error.message}`); refreshData(); }
   };
   const deleteThirdPartyScheduleItem = async (id: string) => {
       setThirdPartySchedule(prev => prev.filter(s => s.id !== id));
-      await supabase.from('third_party_schedule').delete().eq('id', id);
+      const { error } = await supabase.from('third_party_schedule').delete().eq('id', id);
+      if (error) { alert(`Erro ao excluir: ${error.message}`); refreshData(); }
   };
 
   // --- PAINTING ---
@@ -370,7 +478,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       const newItem = { ...item, id: newId };
       setPaintingProjects(prev => [newItem, ...prev]);
       
-      await supabase.from('painting_projects').insert({
+      const { error } = await supabase.from('painting_projects').insert({
           id: newId,
           tower: item.tower,
           local: item.local,
@@ -381,25 +489,32 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           paint_details: item.paintDetails,
           quantity: item.quantity
       });
+
+      if (error) {
+          setPaintingProjects(prev => prev.filter(p => p.id !== newId));
+          alert(`ERRO AO SALVAR PINTURA: ${error.message}`);
+      }
   };
   const updatePaintingProject = async (id: string, updates: Partial<PaintingProject>) => {
       setPaintingProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
       
       const dbUpdates: any = {};
-      if(updates.tower) dbUpdates.tower = updates.tower;
-      if(updates.local) dbUpdates.local = updates.local;
-      if(updates.criticality) dbUpdates.criticality = updates.criticality;
-      if(updates.startDate) dbUpdates.start_date = updates.startDate;
-      if(updates.endDateForecast) dbUpdates.end_date_forecast = updates.endDateForecast;
-      if(updates.status) dbUpdates.status = updates.status;
-      if(updates.paintDetails) dbUpdates.paint_details = updates.paintDetails;
-      if(updates.quantity) dbUpdates.quantity = updates.quantity;
+      if(updates.tower !== undefined) dbUpdates.tower = updates.tower;
+      if(updates.local !== undefined) dbUpdates.local = updates.local;
+      if(updates.criticality !== undefined) dbUpdates.criticality = updates.criticality;
+      if(updates.startDate !== undefined) dbUpdates.start_date = updates.startDate;
+      if(updates.endDateForecast !== undefined) dbUpdates.end_date_forecast = updates.endDateForecast;
+      if(updates.status !== undefined) dbUpdates.status = updates.status;
+      if(updates.paintDetails !== undefined) dbUpdates.paint_details = updates.paintDetails;
+      if(updates.quantity !== undefined) dbUpdates.quantity = updates.quantity;
 
-      await supabase.from('painting_projects').update(dbUpdates).eq('id', id);
+      const { error } = await supabase.from('painting_projects').update(dbUpdates).eq('id', id);
+      if (error) { alert(`Erro ao atualizar: ${error.message}`); refreshData(); }
   };
   const deletePaintingProject = async (id: string) => {
       setPaintingProjects(prev => prev.filter(p => p.id !== id));
-      await supabase.from('painting_projects').delete().eq('id', id);
+      const { error } = await supabase.from('painting_projects').delete().eq('id', id);
+      if (error) { alert(`Erro ao excluir: ${error.message}`); refreshData(); }
   };
 
   // --- PURCHASES ---
@@ -408,7 +523,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       const newItem = { ...item, id: newId };
       setPurchases(prev => [newItem, ...prev]);
 
-      await supabase.from('purchases').insert({
+      const { error } = await supabase.from('purchases').insert({
           id: newId,
           quantity: item.quantity,
           description: item.description,
@@ -417,23 +532,30 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           approval_date: item.approvalDate,
           entry_date: item.entryDate
       });
+
+      if (error) {
+          setPurchases(prev => prev.filter(p => p.id !== newId));
+          alert(`ERRO AO SALVAR COMPRA: ${error.message}`);
+      }
   };
   const updatePurchase = async (id: string, updates: Partial<PurchaseRequest>) => {
       setPurchases(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
 
       const dbUpdates: any = {};
-      if(updates.quantity) dbUpdates.quantity = updates.quantity;
-      if(updates.description) dbUpdates.description = updates.description;
-      if(updates.local) dbUpdates.local = updates.local;
-      if(updates.requestDate) dbUpdates.request_date = updates.requestDate;
-      if(updates.approvalDate) dbUpdates.approval_date = updates.approvalDate;
-      if(updates.entryDate) dbUpdates.entry_date = updates.entryDate;
+      if(updates.quantity !== undefined) dbUpdates.quantity = updates.quantity;
+      if(updates.description !== undefined) dbUpdates.description = updates.description;
+      if(updates.local !== undefined) dbUpdates.local = updates.local;
+      if(updates.requestDate !== undefined) dbUpdates.request_date = updates.requestDate;
+      if(updates.approvalDate !== undefined) dbUpdates.approval_date = updates.approvalDate;
+      if(updates.entryDate !== undefined) dbUpdates.entry_date = updates.entryDate;
 
-      await supabase.from('purchases').update(dbUpdates).eq('id', id);
+      const { error } = await supabase.from('purchases').update(dbUpdates).eq('id', id);
+      if (error) { alert(`Erro ao atualizar: ${error.message}`); refreshData(); }
   };
   const deletePurchase = async (id: string) => {
       setPurchases(prev => prev.filter(p => p.id !== id));
-      await supabase.from('purchases').delete().eq('id', id);
+      const { error } = await supabase.from('purchases').delete().eq('id', id);
+      if (error) { alert(`Erro ao excluir: ${error.message}`); refreshData(); }
   };
 
   // --- SETTINGS ---
@@ -446,7 +568,14 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       [category]: [...prev[category], newItem],
     }));
 
-    await supabase.from(category).insert(newItem);
+    const { error } = await supabase.from(category).insert(newItem);
+    if (error) {
+        alert(`Erro ao salvar configuração: ${error.message}`);
+        setSettings((prev) => ({
+            ...prev,
+            [category]: prev[category].filter(i => i.id !== newId),
+        }));
+    }
   };
 
   const updateSettingItem = async (category: keyof SettingsState, id: string, newName: string) => {
@@ -457,7 +586,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       ),
     }));
 
-    await supabase.from(category).update({ name: newName }).eq('id', id);
+    const { error } = await supabase.from(category).update({ name: newName }).eq('id', id);
+    if (error) { alert(`Erro: ${error.message}`); refreshData(); }
   };
 
   const removeSettingItem = async (category: keyof SettingsState, id: string) => {
@@ -465,7 +595,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       ...prev,
       [category]: prev[category].filter((item) => item.id !== id),
     }));
-    await supabase.from(category).delete().eq('id', id);
+    const { error } = await supabase.from(category).delete().eq('id', id);
+    if (error) { alert(`Erro: ${error.message}`); refreshData(); }
   };
 
   const exportTasksToCSV = () => {
@@ -514,8 +645,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       ]);
   };
 
-  // ... (normalize helpers keep same)
-
+  // ... (normalize helpers)
   const normalizeDate = (dateStr: string) => {
       if (!dateStr || dateStr.trim() === '') return new Date().toISOString().split('T')[0];
       const cleanStr = dateStr.trim();
@@ -545,18 +675,16 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       if (v.includes('alt') || v.includes('high') || v.includes('urge') || v.includes('crit') || v.includes('crít')) return 'Alta';
       if (v.includes('méd') || v.includes('med')) return 'Média';
       if (v.includes('baix') || v.includes('low')) return 'Baixa';
-      return 'Média'; // Default
+      return 'Média';
   };
 
   const normalizeSituation = (val: string): string => {
       if (!val) return 'Aberto';
       const v = val.toLowerCase().trim();
-      
       if (v === 'em andamento') return 'Em Andamento';
       if (v === 'concluido' || v === 'concluído') return 'Concluído';
       if (v === 'cancelado') return 'Cancelado';
       if (v === 'aberto') return 'Aberto';
-      
       return val.charAt(0).toUpperCase() + val.slice(1).toLowerCase();
   };
 
@@ -656,7 +784,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                 id: generateId('P-'),
                 tower: getValue(r, 'torre') || 'Geral',
                 local: getValue(r, 'local') || 'Importado',
-                criticality: normalizeCriticality(getValue(r, 'criticidade')), // Normalized
+                criticality: normalizeCriticality(getValue(r, 'criticidade')), 
                 start_date: normalizeDate(getValue(r, 'inicio')),
                 end_date_forecast: normalizeDate(getValue(r, 'previsao')),
                 status: getValue(r, 'status') || '',
