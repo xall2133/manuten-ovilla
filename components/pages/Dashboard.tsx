@@ -76,6 +76,17 @@ const TickerTape = ({ items }: { items: string[] }) => {
     );
 };
 
+// --- TYPES ---
+interface StatCardProps {
+  title: string;
+  value: number;
+  icon: React.ElementType;
+  colorClass: string;
+  gradient: string;
+  subText?: string;
+  subTextColor?: string;
+}
+
 export const Dashboard = () => {
   const { tasks, settings, visits, schedule, paintingProjects, purchases, thirdPartySchedule } = useData();
   
@@ -164,7 +175,7 @@ export const Dashboard = () => {
       return crit.includes('alt') || crit.includes('high') || crit.includes('urge');
   });
 
-  const highCritTotal = allHighCritTasks.length;
+  // Removed unused highCritTotal variable that caused build error
   const highCritPendingCount = allHighCritTasks.filter(t => 
       !(t.situation || '').toLowerCase().includes('conclu') && 
       !(t.situation || '').toLowerCase().includes('cancel')
@@ -172,7 +183,7 @@ export const Dashboard = () => {
 
   // --- Alert Ticker Data ---
   const alerts = useMemo(() => {
-      const list = [];
+      const list: string[] = [];
       // High Criticality Tasks
       allHighCritTasks.forEach(t => {
           if (!(t.situation || '').toLowerCase().includes('conclu')) {
@@ -271,7 +282,7 @@ export const Dashboard = () => {
       return w.workStartDate || w.workEndDate;
   }).slice(0, 3);
 
-  const StatCard = ({ title, value, icon: Icon, colorClass, gradient, subText, subTextColor }: any) => (
+  const StatCard = ({ title, value, icon: Icon, colorClass, gradient, subText, subTextColor }: StatCardProps) => (
     <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl border border-white/5 hover:border-white/10 transition-all group relative overflow-hidden">
       <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${gradient} opacity-10 rounded-bl-full group-hover:opacity-20 transition-opacity`}></div>
       <div className="flex items-start justify-between relative z-10">
