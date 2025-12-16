@@ -5,7 +5,6 @@ import {
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
 import { AlertTriangle, CheckCircle2, Clock, ListFilter, CalendarDays, Users, PaintBucket, ShoppingCart, ArrowRight, Zap, TrendingUp, AlertCircle, HardHat, Pause, Play, Briefcase } from 'lucide-react';
-import { useTheme } from '../../context/ThemeContext';
 import { Link } from 'react-router-dom';
 
 // Neon Palette for Vibe Cod
@@ -17,6 +16,8 @@ const CountUp = ({ end, duration = 1500 }: { end: number, duration?: number }) =
 
   useEffect(() => {
     let startTime: number | null = null;
+    let animationFrameId: number;
+
     const animate = (currentTime: number) => {
       if (!startTime) startTime = currentTime;
       const progress = currentTime - startTime;
@@ -27,12 +28,14 @@ const CountUp = ({ end, duration = 1500 }: { end: number, duration?: number }) =
         const ease = 1 - Math.pow(1 - percentage, 4); 
         
         setCount(Math.floor(end * ease));
-        requestAnimationFrame(animate);
+        animationFrameId = requestAnimationFrame(animate);
       } else {
         setCount(end);
       }
     };
-    requestAnimationFrame(animate);
+    animationFrameId = requestAnimationFrame(animate);
+    
+    return () => cancelAnimationFrame(animationFrameId);
   }, [end, duration]);
 
   return <>{count}</>;
@@ -75,7 +78,6 @@ const TickerTape = ({ items }: { items: string[] }) => {
 
 export const Dashboard = () => {
   const { tasks, settings, visits, schedule, paintingProjects, purchases, thirdPartySchedule } = useData();
-  const { theme } = useTheme();
   
   // Default 'all' to show history immediately
   const [dateRange, setDateRange] = useState('all');
@@ -94,7 +96,9 @@ export const Dashboard = () => {
           setActiveChartIndex((prev) => (prev + 1) % 3); // Cycle through 0, 1, 2
       }, CHART_DURATION);
 
-      return () => clearInterval(carouselInterval.current);
+      return () => {
+        if (carouselInterval.current) clearInterval(carouselInterval.current);
+      };
   }, [isPaused]);
 
   // Helper robusto para datas
@@ -508,7 +512,9 @@ export const Dashboard = () => {
                                 <p className="text-xs text-slate-400 pl-2">{w.service}</p>
                                 <div className="pl-2 mt-1 flex items-center gap-1 text-[10px] text-orange-400">
                                     <Clock size={10} />
-                                    <span>{new Date(w.workStartDate!).toLocaleDateString('pt-BR')} até {new Date(w.workEndDate!).toLocaleDateString('pt-BR')}</span>
+                                    <span>
+                                      {w.workStartDate ? new Date(w.workStartDate).toLocaleDateString('pt-BR') : '-'} até {w.workEndDate ? new Date(w.workEndDate).toLocaleDateString('pt-BR') : '-'}
+                                    </span>
                                 </div>
                             </div>
                         ))
