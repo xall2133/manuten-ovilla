@@ -1,22 +1,101 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useData } from '../../context/DataContext';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
-import { AlertTriangle, CheckCircle2, Clock, ListFilter, CalendarDays, Users, PaintBucket, ShoppingCart, ArrowRight, Zap, TrendingUp, AlertCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, ListFilter, CalendarDays, Users, PaintBucket, ShoppingCart, ArrowRight, Zap, TrendingUp, AlertCircle, HardHat, Pause, Play, Briefcase } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { Link } from 'react-router-dom';
 
 // Neon Palette for Vibe Cod
 const COLORS = ['#3b82f6', '#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444'];
 
+// --- SUB-COMPONENT: ANIMATED COUNTER ---
+const CountUp = ({ end, duration = 1500 }: { end: number, duration?: number }) => {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let startTime: number | null = null;
+    const animate = (currentTime: number) => {
+      if (!startTime) startTime = currentTime;
+      const progress = currentTime - startTime;
+      
+      if (progress < duration) {
+        const percentage = progress / duration;
+        // EaseOutQuart function
+        const ease = 1 - Math.pow(1 - percentage, 4); 
+        
+        setCount(Math.floor(end * ease));
+        requestAnimationFrame(animate);
+      } else {
+        setCount(end);
+      }
+    };
+    requestAnimationFrame(animate);
+  }, [end, duration]);
+
+  return <>{count}</>;
+};
+
+// --- SUB-COMPONENT: TICKER TAPE ---
+const TickerTape = ({ items }: { items: string[] }) => {
+    if (items.length === 0) return null;
+
+    return (
+        <div className="w-full bg-red-500/10 border-y border-red-500/20 overflow-hidden h-8 flex items-center relative mb-6">
+            <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-slate-950 to-transparent z-10"></div>
+            <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-slate-950 to-transparent z-10"></div>
+            
+            <div className="flex whitespace-nowrap animate-marquee">
+                {items.map((item, idx) => (
+                    <div key={idx} className="mx-8 flex items-center gap-2 text-xs font-bold text-red-400 uppercase tracking-widest">
+                        <AlertTriangle size={12} /> {item}
+                    </div>
+                ))}
+                {/* Duplicate for seamless loop */}
+                {items.map((item, idx) => (
+                    <div key={`dup-${idx}`} className="mx-8 flex items-center gap-2 text-xs font-bold text-red-400 uppercase tracking-widest">
+                        <AlertTriangle size={12} /> {item}
+                    </div>
+                ))}
+            </div>
+            <style>{`
+                @keyframes marquee {
+                    0% { transform: translateX(0); }
+                    100% { transform: translateX(-50%); }
+                }
+                .animate-marquee {
+                    animation: marquee 30s linear infinite;
+                }
+            `}</style>
+        </div>
+    );
+};
+
 export const Dashboard = () => {
-  const { tasks, settings, visits, schedule, paintingProjects, purchases } = useData();
+  const { tasks, settings, visits, schedule, paintingProjects, purchases, thirdPartySchedule } = useData();
   const { theme } = useTheme();
   
   // Default 'all' to show history immediately
   const [dateRange, setDateRange] = useState('all');
+
+  // Carousel State
+  const [activeChartIndex, setActiveChartIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const carouselInterval = useRef<any>(null);
+  const CHART_DURATION = 8000; // 8 seconds per chart
+
+  // --- AUTOMATIC CAROUSEL LOGIC ---
+  useEffect(() => {
+      if (isPaused) return;
+
+      carouselInterval.current = setInterval(() => {
+          setActiveChartIndex((prev) => (prev + 1) % 3); // Cycle through 0, 1, 2
+      }, CHART_DURATION);
+
+      return () => clearInterval(carouselInterval.current);
+  }, [isPaused]);
 
   // Helper robusto para datas
   const parseDate = (dateStr: string) => {
@@ -64,10 +143,9 @@ export const Dashboard = () => {
     });
   }, [tasks, dateRange]);
 
-  // --- Metrics Calculation (Robust) ---
+  // --- Metrics Calculation ---
   const totalTasks = filteredTasks.length;
   
-  // Contagem flexível para "Em Andamento"
   const inProgressTasks = filteredTasks.filter(t => {
       const s = (t.situation || '').toLowerCase();
       return s.includes('andamento') || s.includes('execu') || s.includes('iniciad');
@@ -77,21 +155,43 @@ export const Dashboard = () => {
     (t.situation || '').toLowerCase().includes('conclu')
   ).length;
 
-  // Filtra TODAS as críticas (Alta/Urgente) INDEPENDENTE DO STATUS para o número principal
   const allHighCritTasks = filteredTasks.filter(t => {
       const crit = (t.criticality || '').toLowerCase();
-      return crit.includes('alt') || crit.includes('high') || crit.includes('urge') || crit.includes('crít') || crit.includes('crit');
+      return crit.includes('alt') || crit.includes('high') || crit.includes('urge');
   });
 
   const highCritTotal = allHighCritTasks.length;
-  
-  // Quantas dessas críticas ainda não foram concluídas?
   const highCritPendingCount = allHighCritTasks.filter(t => 
       !(t.situation || '').toLowerCase().includes('conclu') && 
       !(t.situation || '').toLowerCase().includes('cancel')
   ).length;
 
-  // Group situations for Chart
+  // --- Alert Ticker Data ---
+  const alerts = useMemo(() => {
+      const list = [];
+      // High Criticality Tasks
+      allHighCritTasks.forEach(t => {
+          if (!(t.situation || '').toLowerCase().includes('conclu')) {
+              list.push(`CRÍTICO: ${t.title} (${t.location})`);
+          }
+      });
+      // Active Works (Third Party) warning
+      thirdPartySchedule.forEach(tp => {
+          if (tp.workStartDate && tp.workEndDate) {
+              const start = new Date(tp.workStartDate);
+              const end = new Date(tp.workEndDate);
+              const now = new Date();
+              if (now >= start && now <= end) {
+                  list.push(`OBRA EM ANDAMENTO: ${tp.company} - ${tp.service}`);
+              }
+          }
+      });
+      return list;
+  }, [allHighCritTasks, thirdPartySchedule]);
+
+
+  // --- Chart Data Preparation ---
+  // 1. Situation Pie
   const situationMap = new Map<string, number>();
   filteredTasks.forEach(t => {
       let rawSit = (t.situation || 'Aberto').trim();
@@ -106,12 +206,11 @@ export const Dashboard = () => {
 
       situationMap.set(displaySit, (situationMap.get(displaySit) || 0) + 1);
   });
-
   const situationData = Array.from(situationMap.entries())
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
 
-  // Group sectors (Case Insensitive)
+  // 2. Sector Bar
   const sectorMap = new Map<string, number>();
   filteredTasks.forEach(t => {
       const sectorConfig = settings.sectors.find(s => s.id === t.sectorId);
@@ -119,11 +218,36 @@ export const Dashboard = () => {
       const normalizedName = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
       sectorMap.set(normalizedName, (sectorMap.get(normalizedName) || 0) + 1);
   });
-  
   const sectorData = Array.from(sectorMap.entries())
     .map(([name, tarefas]) => ({ name, tarefas }))
     .sort((a, b) => b.tarefas - a.tarefas)
     .slice(0, 8); 
+
+  // 3. Weekly Evolution (Simulated Area Chart)
+  // Group tasks by creation date (last 7 days logic simulated for demo if data sparse)
+  const evolutionData = useMemo(() => {
+     const daysMap = new Map<string, number>();
+     const today = new Date();
+     // Init last 7 days with 0
+     for(let i=6; i>=0; i--) {
+         const d = new Date(today);
+         d.setDate(today.getDate() - i);
+         const key = d.toLocaleDateString('pt-BR', {weekday: 'short'});
+         daysMap.set(key, 0);
+     }
+     
+     filteredTasks.forEach(t => {
+         const d = parseDate(t.callDate);
+         if (d) {
+             const key = d.toLocaleDateString('pt-BR', {weekday: 'short'});
+             if (daysMap.has(key)) {
+                 daysMap.set(key, (daysMap.get(key) || 0) + 1);
+             }
+         }
+     });
+     return Array.from(daysMap.entries()).map(([name, tarefas]) => ({ name, tarefas }));
+  }, [filteredTasks]);
+
 
   // --- Helper Logic for Bottom Section ---
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -136,6 +260,12 @@ export const Dashboard = () => {
   const recentVisits = [...visits].reverse().slice(0, 3);
   const activePainting = paintingProjects.slice(0, 3);
   const pendingPurchases = purchases.filter(p => !p.approvalDate).slice(0, 3);
+  
+  // Obras Logic
+  const activeWorks = thirdPartySchedule.filter(w => {
+      // Show if it has dates defined, basically
+      return w.workStartDate || w.workEndDate;
+  }).slice(0, 3);
 
   const StatCard = ({ title, value, icon: Icon, colorClass, gradient, subText, subTextColor }: any) => (
     <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl border border-white/5 hover:border-white/10 transition-all group relative overflow-hidden">
@@ -143,7 +273,9 @@ export const Dashboard = () => {
       <div className="flex items-start justify-between relative z-10">
         <div>
           <p className="text-sm font-medium text-slate-400 mb-1">{title}</p>
-          <h3 className="text-3xl font-bold text-white font-display tracking-tight">{value}</h3>
+          <h3 className="text-3xl font-bold text-white font-display tracking-tight">
+             <CountUp end={value} />
+          </h3>
           {subText && (
               <p className={`text-xs mt-2 flex items-center gap-1 font-medium ${subTextColor || 'text-slate-500'}`}>
                   {subTextColor ? <AlertCircle size={10} /> : <TrendingUp size={10}/>} {subText}
@@ -158,9 +290,12 @@ export const Dashboard = () => {
   );
 
   return (
-    <div className="space-y-8 animate-fade-in pb-10">
+    <div className="space-y-4 animate-fade-in pb-10">
+      {/* Ticker for Alerts */}
+      {alerts.length > 0 && <TickerTape items={alerts} />}
+
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
         <div>
            <h2 className="text-3xl font-bold text-white font-display">Dashboard</h2>
            <p className="text-slate-400 flex items-center gap-2 text-sm"><Zap size={14} className="text-yellow-500"/> Visão geral em tempo real</p>
@@ -179,8 +314,8 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* Top KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Top KPIs - Animated */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard 
           title="Total de Tarefas" 
           value={totalTasks} 
@@ -195,7 +330,7 @@ export const Dashboard = () => {
           icon={Clock} 
           colorClass="text-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.3)]"
           gradient="from-cyan-500 to-emerald-500"
-          subText={`${((inProgressTasks / (totalTasks || 1)) * 100).toFixed(0)}% do total`}
+          subText={`${totalTasks > 0 ? ((inProgressTasks / totalTasks) * 100).toFixed(0) : 0}% do total`}
         />
         <StatCard 
           title="Concluídas" 
@@ -206,84 +341,139 @@ export const Dashboard = () => {
           subText="Finalizadas"
         />
         <StatCard 
-          title="Criticidade Alta (Total)" 
-          value={highCritTotal} 
+          title="Alertas Críticos" 
+          value={highCritPendingCount} 
           icon={AlertTriangle} 
           colorClass="text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)]" 
           gradient="from-red-500 to-orange-500"
-          subText={highCritPendingCount > 0 ? `${highCritPendingCount} Ativas / Pendentes` : '0 Pendentes agora'}
+          subText="Pendentes agora"
           subTextColor={highCritPendingCount > 0 ? 'text-red-400' : 'text-emerald-500'}
         />
       </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Situation Distribution */}
-        <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl border border-white/5">
-          <h3 className="text-lg font-bold text-white mb-6 font-display">Status das Tarefas</h3>
-          <div className="h-64 w-full">
-            {situationData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                    <Pie
-                    data={situationData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                    stroke="#0f172a"
-                    strokeWidth={2}
-                    >
-                    {situationData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                    </Pie>
-                    <Tooltip 
-                    contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)', color: '#f8fafc' }}
-                    itemStyle={{ color: '#cbd5e1' }}
-                    />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                </PieChart>
-                </ResponsiveContainer>
-            ) : (
-                <div className="h-full flex flex-col items-center justify-center text-slate-500 text-sm gap-2">
-                    <p>Sem dados para o período.</p>
-                </div>
-            )}
+      {/* DYNAMIC CHART CAROUSEL */}
+      <div 
+        className="relative bg-slate-900/60 backdrop-blur-md p-1 rounded-2xl border border-white/5 overflow-hidden group mb-8"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => setIsPaused(false)}
+      >
+          {/* Progress Bar */}
+          {!isPaused && (
+             <div className="absolute top-0 left-0 h-1 bg-gradient-to-r from-blue-500 to-cyan-400 z-20 transition-all duration-100 ease-linear w-full" 
+                  style={{ animation: `progress ${CHART_DURATION}ms linear infinite` }}
+             ></div>
+          )}
+          <style>{`@keyframes progress { 0% { width: 0% } 100% { width: 100% } }`}</style>
+          
+          {/* Controls */}
+          <div className="absolute top-4 right-4 z-20 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onClick={() => setIsPaused(!isPaused)} className="p-1.5 bg-slate-800 rounded-lg text-slate-300 hover:text-white border border-white/10">
+                  {isPaused ? <Play size={14} /> : <Pause size={14} />}
+              </button>
+              {[0, 1, 2].map(idx => (
+                  <button 
+                    key={idx}
+                    onClick={() => setActiveChartIndex(idx)}
+                    className={`w-3 h-3 rounded-full border border-white/10 ${activeChartIndex === idx ? 'bg-blue-500' : 'bg-slate-800'}`}
+                  />
+              ))}
           </div>
-        </div>
 
-        {/* Tasks by Sector */}
-        <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl border border-white/5">
-          <h3 className="text-lg font-bold text-white mb-6 font-display">Tarefas por Setor</h3>
-          <div className="h-64 w-full">
-            {sectorData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={sectorData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} dy={10} interval={0} />
-                    <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
-                    <Tooltip 
-                     cursor={{fill: '#1e293b'}}
-                     contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)', color: '#f8fafc' }}
-                     itemStyle={{ color: '#60a5fa' }}
-                    />
-                    <Bar dataKey="tarefas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={40}>
-                         {sectorData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                    </Bar>
-                </BarChart>
-                </ResponsiveContainer>
-            ) : (
-                <div className="h-full flex items-center justify-center text-slate-500 text-sm">
-                    Sem dados para o período selecionado.
-                </div>
-            )}
+          <div className="p-6 h-[400px]">
+             {/* VIEW 0: STATUS PIE */}
+             {activeChartIndex === 0 && (
+                 <div className="h-full animate-fade-in flex flex-col">
+                     <h3 className="text-xl font-bold text-white mb-2 font-display flex items-center gap-2">
+                        <ListFilter size={20} className="text-blue-500"/> Distribuição por Status
+                     </h3>
+                     <p className="text-sm text-slate-400 mb-4">Visão geral do progresso das tarefas</p>
+                     <div className="flex-1 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                data={situationData}
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={80}
+                                outerRadius={120}
+                                paddingAngle={5}
+                                dataKey="value"
+                                stroke="#0f172a"
+                                strokeWidth={2}
+                                >
+                                {situationData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                ))}
+                                </Pie>
+                                <Tooltip 
+                                contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)', color: '#f8fafc' }}
+                                itemStyle={{ color: '#cbd5e1' }}
+                                />
+                                <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                            </PieChart>
+                        </ResponsiveContainer>
+                     </div>
+                 </div>
+             )}
+
+             {/* VIEW 1: SECTORS BAR */}
+             {activeChartIndex === 1 && (
+                 <div className="h-full animate-fade-in flex flex-col">
+                     <h3 className="text-xl font-bold text-white mb-2 font-display flex items-center gap-2">
+                        <Briefcase size={20} className="text-cyan-500"/> Tarefas por Setor
+                     </h3>
+                     <p className="text-sm text-slate-400 mb-4">Áreas com maior demanda de manutenção</p>
+                     <div className="flex-1 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={sectorData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10}} dy={10} interval={0} />
+                                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+                                <Tooltip 
+                                cursor={{fill: '#1e293b'}}
+                                contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.5)', color: '#f8fafc' }}
+                                itemStyle={{ color: '#60a5fa' }}
+                                />
+                                <Bar dataKey="tarefas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={50} animationDuration={1500}>
+                                    {sectorData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                     </div>
+                 </div>
+             )}
+
+             {/* VIEW 2: WEEKLY EVOLUTION AREA */}
+             {activeChartIndex === 2 && (
+                 <div className="h-full animate-fade-in flex flex-col">
+                     <h3 className="text-xl font-bold text-white mb-2 font-display flex items-center gap-2">
+                        <TrendingUp size={20} className="text-emerald-500"/> Evolução Semanal
+                     </h3>
+                     <p className="text-sm text-slate-400 mb-4">Volume de chamados nos últimos 7 dias</p>
+                     <div className="flex-1 w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={evolutionData}>
+                                <defs>
+                                    <linearGradient id="colorTarefas" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8'}} />
+                                <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8'}} />
+                                <Tooltip 
+                                contentStyle={{ backgroundColor: '#0f172a', borderRadius: '12px', border: '1px solid #1e293b', color: '#f8fafc' }}
+                                />
+                                <Area type="monotone" dataKey="tarefas" stroke="#10b981" fillOpacity={1} fill="url(#colorTarefas)" animationDuration={2000} />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                     </div>
+                 </div>
+             )}
           </div>
-        </div>
       </div>
 
       {/* --- OPERATIONAL SUMMARY SECTION --- */}
@@ -293,7 +483,39 @@ export const Dashboard = () => {
             <div className="h-px bg-slate-800 flex-1 ml-4"></div>
         </h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        {/* Changed Grid to 3 cols usually, can go 4 if large screen */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-6">
+            
+            {/* OBRAS CARD (NEW) */}
+            <div className="bg-slate-900/40 backdrop-blur-sm p-5 rounded-2xl border border-white/5 flex flex-col hover:border-orange-500/30 transition-colors">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2 text-slate-200 font-semibold font-display">
+                        <HardHat size={18} className="text-orange-500" />
+                        <h4>Obras Ativas</h4>
+                    </div>
+                    <Link to="/works" className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1 transition-colors">Ver tudo <ArrowRight size={12}/></Link>
+                </div>
+                <div className="space-y-3 flex-1">
+                    {activeWorks.length === 0 ? (
+                         <div className="h-full flex items-center justify-center">
+                            <p className="text-xs text-slate-500">Nenhuma obra em andamento.</p>
+                         </div>
+                    ) : (
+                        activeWorks.map((w, idx) => (
+                            <div key={idx} className="flex flex-col gap-1 text-sm p-3 bg-slate-800/50 rounded-xl border border-white/5 relative overflow-hidden">
+                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500"></div>
+                                <p className="font-bold text-slate-200 pl-2">{w.company}</p>
+                                <p className="text-xs text-slate-400 pl-2">{w.service}</p>
+                                <div className="pl-2 mt-1 flex items-center gap-1 text-[10px] text-orange-400">
+                                    <Clock size={10} />
+                                    <span>{new Date(w.workStartDate!).toLocaleDateString('pt-BR')} até {new Date(w.workEndDate!).toLocaleDateString('pt-BR')}</span>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+
             <div className="bg-slate-900/40 backdrop-blur-sm p-5 rounded-2xl border border-white/5 flex flex-col hover:border-blue-500/30 transition-colors">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2 text-slate-200 font-semibold font-display">
@@ -375,10 +597,10 @@ export const Dashboard = () => {
             <div className="bg-slate-900/40 backdrop-blur-sm p-5 rounded-2xl border border-white/5 flex flex-col hover:border-orange-500/30 transition-colors">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2 text-slate-200 font-semibold font-display">
-                        <ShoppingCart size={18} className="text-orange-500" />
+                        <ShoppingCart size={18} className="text-amber-500" />
                         <h4>Solicitações</h4>
                     </div>
-                    <Link to="/purchases" className="text-xs text-orange-400 hover:text-orange-300 flex items-center gap-1 transition-colors">Ver tudo <ArrowRight size={12}/></Link>
+                    <Link to="/purchases" className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors">Ver tudo <ArrowRight size={12}/></Link>
                 </div>
                 <div className="space-y-3 flex-1">
                      {pendingPurchases.length === 0 ? (
@@ -390,13 +612,13 @@ export const Dashboard = () => {
                             <div key={req.id} className="flex items-center justify-between text-sm p-3 bg-slate-800/50 rounded-xl border border-white/5">
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <span className="font-bold text-white bg-orange-500/20 px-1.5 rounded text-xs text-orange-400">{req.quantity}x</span>
+                                        <span className="font-bold text-white bg-amber-500/20 px-1.5 rounded text-xs text-amber-400">{req.quantity}x</span>
                                         <span className="text-slate-300 truncate max-w-[100px]">{req.description}</span>
                                     </div>
                                     <p className="text-[10px] text-slate-500 uppercase mt-0.5">{req.local}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[10px] font-bold text-orange-400">PENDENTE</p>
+                                    <p className="text-[10px] font-bold text-amber-400">PENDENTE</p>
                                 </div>
                             </div>
                         ))

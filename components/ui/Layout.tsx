@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, Link, Outlet } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, Settings, LogOut, Bell, Menu, Hexagon, Moon, Sun, Users, CalendarDays, PaintBucket, ShoppingCart, RefreshCcw, Wifi, Zap, RefreshCw } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Settings, LogOut, Bell, Menu, Hexagon, Moon, Sun, Users, CalendarDays, PaintBucket, ShoppingCart, RefreshCcw, Wifi, Zap, RefreshCw, HardHat } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -13,7 +13,7 @@ export const Layout = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   // Versão do App (Incrementar manualmente para confirmar deploy)
-  const APP_VERSION = "v1.8";
+  const APP_VERSION = "v1.9";
 
   // Simple logic to count active high-criticality tasks for notification
   const alertCount = tasks.filter(t => t.criticality === 'Alta' && t.situation !== 'Concluído').length;
@@ -25,6 +25,7 @@ export const Layout = () => {
     { path: '/tasks', label: 'Tarefas', icon: ClipboardList },
     { path: '/visits', label: 'Visitas', icon: Users },
     { path: '/schedule', label: 'Cronograma', icon: CalendarDays },
+    { path: '/works', label: 'Obras', icon: HardHat },
     { path: '/painting', label: 'Pintura', icon: PaintBucket },
     { path: '/purchases', label: 'Compras', icon: ShoppingCart },
   ];

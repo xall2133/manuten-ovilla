@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
-import { Edit2, Save, X, Trash2, Plus, Upload, Briefcase, Filter, AlertTriangle, CalendarRange } from 'lucide-react';
+import { Edit2, Save, X, Trash2, Plus, Upload, Briefcase, Filter, AlertTriangle, HardHat, CalendarRange } from 'lucide-react';
 import { ThirdPartyScheduleItem, Frequency } from '../../types';
 
-export const Schedule = () => {
+export const Works = () => {
   const { 
     thirdPartySchedule, 
     addThirdPartyScheduleItem, 
@@ -36,7 +36,7 @@ export const Schedule = () => {
   }
 
   const handleDelete = (id: string) => {
-      if(window.confirm('Confirma a exclusão deste item do cronograma?')) {
+      if(window.confirm('Confirma a exclusão deste item de obra/terceiro?')) {
           deleteThirdPartyScheduleItem(id);
       }
   }
@@ -99,10 +99,10 @@ export const Schedule = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
            <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-               <Briefcase className="text-blue-500" />
-               Cronograma
+               <HardHat className="text-orange-500" />
+               Obras e Terceiros
            </h2>
-           <p className="text-slate-500 dark:text-slate-400">Gestão de contratos, manutenções e obras</p>
+           <p className="text-slate-500 dark:text-slate-400">Gestão de contratos, manutenções terceirizadas e reformas</p>
         </div>
         <div className="flex items-center gap-2">
             <label className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer">
@@ -116,7 +116,7 @@ export const Schedule = () => {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Frequency Filters */}
       <div className="flex flex-wrap gap-2 pb-2 items-center">
           <div className="flex items-center gap-2 text-slate-500 mr-2">
               <Filter size={16} />
@@ -142,18 +142,18 @@ export const Schedule = () => {
         <table className="w-full text-center border-collapse">
             <thead>
             <tr className="bg-slate-50 dark:bg-slate-700/50 text-slate-700 dark:text-slate-200 text-xs uppercase font-bold tracking-wider">
-                <th className="px-4 py-4 border-r border-slate-200 dark:border-slate-700 text-left">Empresa</th>
+                <th className="px-4 py-4 border-r border-slate-200 dark:border-slate-700 text-left">Empresa Terceirizada</th>
                 <th className="px-4 py-4 border-r border-slate-200 dark:border-slate-700 text-left">Serviços</th>
                 <th className="px-4 py-4 border-r border-slate-200 dark:border-slate-700">Frequência</th>
                 <th className="px-4 py-4 border-r border-slate-200 dark:border-slate-700 text-left">Contato</th>
-                <th className="px-4 py-4 bg-orange-50 dark:bg-orange-900/10 text-orange-700 dark:text-orange-300 w-48 border-r border-orange-100 dark:border-slate-700">Data</th>
+                <th className="px-4 py-4 bg-orange-50 dark:bg-orange-900/10 text-orange-700 dark:text-orange-300 w-48 border-r border-orange-100 dark:border-slate-700">Dados da Obra</th>
                 <th className="px-4 py-4 w-24 text-right">Ações</th>
             </tr>
             </thead>
             <tbody className="text-sm divide-y divide-slate-100 dark:divide-slate-700">
             {filteredItems.length === 0 ? (
                 <tr>
-                    <td colSpan={6} className="p-8 text-center text-slate-500">Nenhum registro encontrado.</td>
+                    <td colSpan={6} className="p-8 text-center text-slate-500">Nenhum registro encontrado para este filtro.</td>
                 </tr>
             ) : (
                 filteredItems.map(item => (
@@ -215,11 +215,11 @@ export const Schedule = () => {
             <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-2xl border border-slate-200 dark:border-slate-700 shadow-xl max-h-[90vh] overflow-y-auto">
                 <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center sticky top-0 bg-white dark:bg-slate-800 z-10">
                     <div className="flex items-center gap-2">
-                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
+                        <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg text-orange-600 dark:text-orange-400">
                             <Briefcase size={20} />
                         </div>
                         <h3 className="font-bold text-lg text-slate-800 dark:text-white">
-                            {editingItem.id ? 'Editar Cronograma' : 'Novo Item'}
+                            {editingItem.id ? 'Editar Obra/Terceiro' : 'Nova Obra/Terceiro'}
                         </h3>
                     </div>
                     <button type="button" onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"><X className="text-slate-400" /></button>
@@ -229,24 +229,24 @@ export const Schedule = () => {
                     <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="col-span-1 md:col-span-2">
-                                <label className="block text-sm font-medium mb-1 text-slate-600 dark:text-slate-400">Empresa / Terceiro</label>
+                                <label className="block text-sm font-medium mb-1 text-slate-600 dark:text-slate-400">Empresa Terceirizada</label>
                                 <input 
                                     type="text"
                                     value={editingItem.company || ''} 
                                     onChange={e => setEditingItem({...editingItem, company: e.target.value})}
                                     className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                    placeholder="Nome da empresa"
+                                    placeholder="Nome da empresa contratada"
                                     autoFocus
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-1 text-slate-600 dark:text-slate-400">Serviço</label>
+                                <label className="block text-sm font-medium mb-1 text-slate-600 dark:text-slate-400">Serviço Prestado</label>
                                 <input 
                                     type="text"
                                     value={editingItem.service || ''} 
                                     onChange={e => setEditingItem({...editingItem, service: e.target.value})}
                                     className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                    placeholder="Ex: Manutenção"
+                                    placeholder="Ex: Manutenção de Elevadores"
                                 />
                             </div>
                             <div>
@@ -264,9 +264,9 @@ export const Schedule = () => {
                                 </select>
                             </div>
                             <div className="col-span-1 md:col-span-2">
-                                <label className="block text-sm font-medium mb-1 text-slate-600 dark:text-slate-400">Contato</label>
+                                <label className="block text-sm font-medium mb-1 text-slate-600 dark:text-slate-400">Contato / Responsável</label>
                                 <input 
-                                    type="text"
+                                    type="text" 
                                     value={editingItem.contact || ''} 
                                     onChange={e => setEditingItem({...editingItem, contact: e.target.value})}
                                     className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
@@ -276,13 +276,16 @@ export const Schedule = () => {
                         </div>
                     </div>
 
+                    {/* DADOS DA OBRA */}
                     <div className="pt-4 border-t border-slate-100 dark:border-slate-700">
                         <h4 className="flex items-center gap-2 text-sm font-bold text-orange-600 dark:text-orange-400 uppercase mb-4 tracking-wide">
-                            <CalendarRange size={16} /> Datas do Contrato / Obra
+                            <HardHat size={16} /> Dados / Datas da Obra
                         </h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-orange-50 dark:bg-orange-900/10 p-5 rounded-xl border border-orange-100 dark:border-orange-900/30">
                             <div>
-                                <label className="block text-xs font-bold text-orange-700 dark:text-orange-300 mb-1.5">Início</label>
+                                <label className="block text-xs font-bold text-orange-700 dark:text-orange-300 mb-1.5 flex items-center gap-1">
+                                    <CalendarRange size={12}/> Início da Obra
+                                </label>
                                 <input 
                                     type="date"
                                     value={editingItem.workStartDate || ''}
@@ -291,7 +294,9 @@ export const Schedule = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-orange-700 dark:text-orange-300 mb-1.5">Término</label>
+                                <label className="block text-xs font-bold text-orange-700 dark:text-orange-300 mb-1.5 flex items-center gap-1">
+                                    <CalendarRange size={12}/> Término Previsto
+                                </label>
                                 <input 
                                     type="date"
                                     value={editingItem.workEndDate || ''}
@@ -300,7 +305,9 @@ export const Schedule = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-bold text-red-600 dark:text-red-400 mb-1.5">Aviso Prévio</label>
+                                <label className="block text-xs font-bold text-red-600 dark:text-red-400 mb-1.5 flex items-center gap-1">
+                                    <AlertTriangle size={12}/> Data de Aviso
+                                </label>
                                 <input 
                                     type="date"
                                     value={editingItem.workNoticeDate || ''}

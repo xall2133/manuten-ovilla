@@ -138,7 +138,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                 responsibleId: t.responsible_id,
                 situation: t.situation,
                 criticality: t.criticality,
-                type: t.maintenance_type || 'Corretiva',
+                // ALTERADO: de t.maintenance_type para t.type
+                type: t.type || 'Corretiva',
                 materials: t.materials || [],
                 callDate: t.call_date,
                 startDate: t.start_date,
@@ -238,7 +239,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         responsible_id: newTask.responsibleId,
         situation: newTask.situation,
         criticality: newTask.criticality,
-        maintenance_type: newTask.type,
+        // ALTERADO: de maintenance_type para type
+        type: newTask.type,
         materials: newTask.materials,
         call_date: newTask.callDate,
         start_date: newTask.startDate,
@@ -255,7 +257,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     if (error) {
         console.error('Supabase Error (Task):', error);
         setTasks((prev) => prev.filter(t => t.id !== tempId));
-        alert(`ERRO AO SALVAR TAREFA: ${error.message}.`);
+        alert(`ERRO AO SALVAR TAREFA: ${error.message}. Verifique se a coluna 'type' existe no banco de dados.`);
     }
   };
 
@@ -272,7 +274,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     if (updates.responsibleId !== undefined) dbUpdates.responsible_id = updates.responsibleId;
     if (updates.situation !== undefined) dbUpdates.situation = updates.situation;
     if (updates.criticality !== undefined) dbUpdates.criticality = updates.criticality;
-    if (updates.type !== undefined) dbUpdates.maintenance_type = updates.type;
+    // ALTERADO: de maintenance_type para type
+    if (updates.type !== undefined) dbUpdates.type = updates.type;
     if (updates.materials !== undefined) dbUpdates.materials = updates.materials;
     if (updates.callDate !== undefined) dbUpdates.call_date = updates.callDate;
     if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate;
@@ -900,7 +903,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                     responsible_id: responsibleId,
                     situation: situationName,
                     criticality: criticality,
-                    maintenance_type: rawType,
+                    // ALTERADO: de maintenance_type para type
+                    type: rawType,
                     materials: [],
                     call_date: normalizeDate(getValue(r, 'data')),
                     created_at: new Date().toISOString()
@@ -935,7 +939,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                  responsibleId: t.responsible_id,
                  situation: t.situation,
                  criticality: t.criticality,
-                 type: t.maintenance_type as any,
+                 type: t.type as any,
                  materials: t.materials,
                  callDate: t.call_date,
                  createdAt: t.created_at
