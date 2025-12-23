@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Task, SettingsState, CatalogItem, Visit, ScheduleItem, MonthlyScheduleItem, PaintingProject, PurchaseRequest, ThirdPartyScheduleItem } from '../types';
 import { supabase } from '../lib/supabase';
@@ -73,7 +74,6 @@ const initialSettings: SettingsState = {
   situations: []
 };
 
-// Helper to generate unique IDs
 const generateId = (prefix: string = '') => {
   return `${prefix}${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`;
 };
@@ -90,24 +90,13 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  // --- FETCH DATA FROM SUPABASE ---
   const refreshData = useCallback(async () => {
       setIsLoading(true);
       try {
         const [
-          tasksRes, 
-          visitsRes, 
-          scheduleRes, 
-          monthlyRes, 
-          thirdPartyRes,
-          paintingRes, 
-          purchasesRes,
-          sectorsRes,
-          servicesRes,
-          towersRes,
-          responsiblesRes,
-          materialsRes,
-          situationsRes
+          tasksRes, visitsRes, scheduleRes, monthlyRes, thirdPartyRes,
+          paintingRes, purchasesRes, sectorsRes, servicesRes,
+          towersRes, responsiblesRes, materialsRes, situationsRes
         ] = await Promise.all([
           supabase.from('tasks').select('*').order('created_at', { ascending: false }),
           supabase.from('visits').select('*'),
@@ -124,9 +113,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           supabase.from('situations').select('*')
         ]);
 
-        if (tasksRes.error) console.error("Error fetching tasks:", tasksRes.error);
-        
-        // --- MAPEAMENTO: DO BANCO (snake_case) PARA O APP (camelCase) ---
         if (tasksRes.data) {
             const mappedTasks = tasksRes.data.map((t: any) => ({
                 id: t.id,
@@ -138,8 +124,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                 responsibleId: t.responsible_id,
                 situation: t.situation,
                 criticality: t.criticality,
-                // ALTERADO: de t.maintenance_type para t.type
-                type: t.type || 'Corretiva',
+                // Mapeia maintenance_type (DB) para type (UI)
+                type: t.maintenance_type || t.type || 'Corretiva',
                 materials: t.materials || [],
                 callDate: t.call_date,
                 startDate: t.start_date,
@@ -213,7 +199,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
         setLastUpdated(new Date());
       } catch (error) {
-        console.error('CRITICAL: Error fetching data from Supabase:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setIsLoading(false);
       }
@@ -228,7 +214,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     const tempId = generateId('T-');
     const now = new Date().toISOString();
     
-    // Mapeamento: App (camelCase) -> Banco (snake_case)
+    // USAMOS 'maintenance_type' para o Banco de Dados, pois 'type' costuma ser palavra reservada ou ausente
     const dbTask = {
         id: tempId,
         title: newTask.title,
@@ -239,8 +225,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         responsible_id: newTask.responsibleId,
         situation: newTask.situation,
         criticality: newTask.criticality,
-        // ALTERADO: de maintenance_type para type
-        type: newTask.type,
+        maintenance_type: newTask.type, 
         materials: newTask.materials,
         call_date: newTask.callDate,
         start_date: newTask.startDate,
@@ -257,7 +242,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     if (error) {
         console.error('Supabase Error (Task):', error);
         setTasks((prev) => prev.filter(t => t.id !== tempId));
-        alert(`ERRO AO SALVAR TAREFA: ${error.message}. Verifique se a coluna 'type' existe no banco de dados.`);
+        alert(`Erro ao salvar: ${error.message}`);
     }
   };
 
@@ -265,7 +250,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
 
     const dbUpdates: any = {};
-    // Mapeamento manual para garantir nomes corretos
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.sectorId !== undefined) dbUpdates.sector_id = updates.sectorId;
     if (updates.serviceId !== undefined) dbUpdates.service_id = updates.serviceId;
@@ -274,8 +258,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     if (updates.responsibleId !== undefined) dbUpdates.responsible_id = updates.responsibleId;
     if (updates.situation !== undefined) dbUpdates.situation = updates.situation;
     if (updates.criticality !== undefined) dbUpdates.criticality = updates.criticality;
-    // ALTERADO: de maintenance_type para type
-    if (updates.type !== undefined) dbUpdates.type = updates.type;
+    if (updates.type !== undefined) dbUpdates.maintenance_type = updates.type;
     if (updates.materials !== undefined) dbUpdates.materials = updates.materials;
     if (updates.callDate !== undefined) dbUpdates.call_date = updates.callDate;
     if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate;
@@ -368,7 +351,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       };
 
       const { error } = await supabase.from('schedule').insert(dbItem);
-
       if (error) {
           setSchedule(prev => prev.filter(s => s.id !== newId));
           alert(`ERRO AO SALVAR CRONOGRAMA: ${error.message}`);
@@ -378,7 +360,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
   const updateScheduleItem = async (id: string, updates: Partial<ScheduleItem>) => {
       setSchedule(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
       const dbUpdates: any = { ...updates };
-      // Conversão
       if(updates.workStartDate !== undefined) { dbUpdates.work_start_date = updates.workStartDate; delete dbUpdates.workStartDate; }
       if(updates.workEndDate !== undefined) { dbUpdates.work_end_date = updates.workEndDate; delete dbUpdates.workEndDate; }
       if(updates.workNoticeDate !== undefined) { dbUpdates.work_notice_date = updates.workNoticeDate; delete dbUpdates.workNoticeDate; }
@@ -411,7 +392,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       };
 
       const { error } = await supabase.from('monthly_schedule').insert(dbItem);
-      
       if (error) {
           setMonthlySchedule(prev => prev.filter(s => s.id !== newId));
           alert(`ERRO AO SALVAR MENSAL: ${error.message}`);
@@ -452,7 +432,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       };
 
       const { error } = await supabase.from('third_party_schedule').insert(dbItem);
-
       if (error) {
           setThirdPartySchedule(prev => prev.filter(s => s.id !== newId));
           alert(`ERRO AO SALVAR TERCEIRO: ${error.message}`);
@@ -610,7 +589,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         const service = findName(settings.services, t.serviceId);
         const tower = findName(settings.towers, t.towerId);
         const materials = t.materials.map(mId => findName(settings.materials, mId)).join('; ');
-
         return [t.id, service, t.type, tower, t.location, t.situation, t.criticality, t.callDate, materials];
     });
     
@@ -627,16 +605,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     document.body.removeChild(link);
   };
 
-  // --- DANGER ZONE: CLEAR ALL DATA ---
   const clearAllData = async () => {
-      setTasks([]);
-      setVisits([]);
-      setSchedule([]);
-      setMonthlySchedule([]);
-      setThirdPartySchedule([]);
-      setPaintingProjects([]);
-      setPurchases([]);
-
+      setTasks([]); setVisits([]); setSchedule([]); setMonthlySchedule([]); setThirdPartySchedule([]); setPaintingProjects([]); setPurchases([]);
       await Promise.all([
           supabase.from('tasks').delete().neq('id', '0'),
           supabase.from('visits').delete().neq('id', '0'),
@@ -648,21 +618,11 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       ]);
   };
 
-  // ... (normalize helpers)
   const normalizeDate = (dateStr: string) => {
       if (!dateStr || dateStr.trim() === '') return new Date().toISOString().split('T')[0];
       const cleanStr = dateStr.trim();
       if (cleanStr.includes('/')) {
           const parts = cleanStr.split('/');
-          if (parts.length === 3) {
-              const d = parts[0].padStart(2, '0');
-              const m = parts[1].padStart(2, '0');
-              const y = parts[2];
-              return `${y}-${m}-${d}`;
-          }
-      }
-      if (cleanStr.includes('-') && cleanStr.split('-')[0].length <= 2) {
-          const parts = cleanStr.split('-');
           if (parts.length === 3) {
               const d = parts[0].padStart(2, '0');
               const m = parts[1].padStart(2, '0');
@@ -677,8 +637,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       const v = val.toLowerCase().trim();
       if (v.includes('alt') || v.includes('high') || v.includes('urge') || v.includes('crit') || v.includes('crít')) return 'Alta';
       if (v.includes('méd') || v.includes('med')) return 'Média';
-      if (v.includes('baix') || v.includes('low')) return 'Baixa';
-      return 'Média';
+      return 'Baixa';
   };
 
   const normalizeSituation = (val: string): string => {
@@ -694,9 +653,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
   const importDataFromCSV = async (csvContent: string): Promise<{ success: boolean; message: string; type?: string; count?: number }> => {
     try {
         const lines = csvContent.split(/\r\n|\n/);
-        if (lines.length < 2) return { success: false, message: 'Arquivo vazio ou formato inválido.' };
+        if (lines.length < 2) return { success: false, message: 'Arquivo vazio.' };
 
-        // 1. Detect Delimiter (Comma or Semicolon)
         const headerLine = lines[0];
         const delimiter = headerLine.includes(';') ? ';' : ',';
         const headers = headerLine.split(delimiter).map(h => h.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
@@ -709,252 +667,81 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
         const rows = lines.slice(1).map(line => {
             if (!line.trim()) return null;
-            if (delimiter === ',') {
-                 return line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
-            }
-            return line.split(';');
+            return delimiter === ',' ? line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/) : line.split(';');
         }).filter(r => r && r.length > 1) as string[][];
 
-        // 2. Identify Section
         let detectedType = '';
         if (headers.some(h => h.includes('unidade') && h.includes('torre'))) detectedType = 'visits';
-        else if (headers.some(h => h.includes('tinta') || h.includes('pintura') || h.includes('demao'))) detectedType = 'painting';
-        else if (headers.some(h => h.includes('quantidade') && (h.includes('descricao') || h.includes('descrição')))) detectedType = 'purchases';
-        else if (headers.some(h => h.includes('empresa') || h.includes('frequencia'))) detectedType = 'third_party';
-        else if (headers.some(h => h.includes('segunda') && h.includes('terca'))) detectedType = 'weekly_schedule';
+        else if (headers.some(h => h.includes('tinta'))) detectedType = 'painting';
+        else if (headers.some(h => h.includes('quantidade'))) detectedType = 'purchases';
+        else if (headers.some(h => h.includes('empresa'))) detectedType = 'third_party';
+        else if (headers.some(h => h.includes('segunda'))) detectedType = 'weekly_schedule';
         else if (headers.some(h => h.includes('semana 1'))) detectedType = 'monthly_schedule';
-        else if (headers.some(h => h.includes('titulo') || h.includes('servico') || h.includes('criticidade'))) detectedType = 'tasks';
+        else detectedType = 'tasks';
 
-        // 3. Process Data
         let count = 0;
-        
-        // ... (Settings Logic) ...
         const pendingSettingsInserts: Record<keyof SettingsState, CatalogItem[]> = {
-            sectors: [],
-            services: [],
-            towers: [],
-            responsibles: [],
-            materials: [],
-            situations: []
+            sectors: [], services: [], towers: [], responsibles: [], materials: [], situations: []
         };
-
         const tempSettings = { ...settings };
 
         const findOrAdd = (category: keyof SettingsState, rawValue: string): string => {
-             if (!rawValue) {
-                if (tempSettings[category].length > 0) return tempSettings[category][0].id;
-                const defaultExists = pendingSettingsInserts[category].find(i => i.name === 'Geral');
-                if (defaultExists) return defaultExists.id;
-
-                const newId = generateId('Cat-');
-                const newItem = { id: newId, name: 'Geral' };
-                pendingSettingsInserts[category].push(newItem);
-                return newId;
-            }
-
-            const cleanVal = rawValue.trim();
-            const matchId = tempSettings[category].find(i => i.id === cleanVal || i.name.toLowerCase() === cleanVal.toLowerCase());
+            const cleanVal = rawValue.trim() || 'Geral';
+            const matchId = tempSettings[category].find(i => i.name.toLowerCase() === cleanVal.toLowerCase());
             if (matchId) return matchId.id;
-
             const pendingMatch = pendingSettingsInserts[category].find(i => i.name.toLowerCase() === cleanVal.toLowerCase());
             if (pendingMatch) return pendingMatch.id;
-
             const newId = generateId('Cat-');
-            const newItem = { id: newId, name: cleanVal };
-            pendingSettingsInserts[category].push(newItem);
+            pendingSettingsInserts[category].push({ id: newId, name: cleanVal });
             return newId;
         };
 
-        // ... (Process types)
         if (detectedType === 'visits') {
             const newVisits = rows.map(r => ({
                 id: generateId('V-'),
                 tower: getValue(r, 'torre') || 'T1',
                 unit: getValue(r, 'unidade') || '000',
-                situation: getValue(r, 'situacao') || getValue(r, 'motivo') || 'Importado',
+                situation: getValue(r, 'situacao') || 'Importado',
                 time: getValue(r, 'hora') || '08:00',
-                collaborator: getValue(r, 'colaborador') || getValue(r, 'responsavel') || '-',
+                collaborator: getValue(r, 'colaborador') || '-',
                 status: getValue(r, 'status') || 'Pendente',
                 return_date: getValue(r, 'retorno') || '-'
             }));
-            const { error } = await supabase.from('visits').insert(newVisits);
-            if (error) throw error;
+            await supabase.from('visits').insert(newVisits);
             setVisits(prev => [...newVisits.map(v => ({...v, returnDate: v.return_date})), ...prev]);
             count = newVisits.length;
-
-        } else if (detectedType === 'painting') {
-            const newProjects = rows.map(r => ({
-                id: generateId('P-'),
-                tower: getValue(r, 'torre') || 'Geral',
-                local: getValue(r, 'local') || 'Importado',
-                criticality: normalizeCriticality(getValue(r, 'criticidade')), 
-                start_date: normalizeDate(getValue(r, 'inicio')),
-                end_date_forecast: normalizeDate(getValue(r, 'previsao')),
-                status: getValue(r, 'status') || '',
-                paint_details: getValue(r, 'tinta') || getValue(r, 'detalhe') || '',
-                quantity: getValue(r, 'quantidade') || ''
-            }));
-            const { error } = await supabase.from('painting_projects').insert(newProjects);
-            if (error) throw error;
-            setPaintingProjects(prev => [...newProjects.map(p => ({...p, startDate: p.start_date, endDateForecast: p.end_date_forecast, paintDetails: p.paint_details})), ...prev]);
-            count = newProjects.length;
-
-        } else if (detectedType === 'purchases') {
-             const newPurchases = rows.map(r => ({
-                id: generateId('R-'),
-                quantity: Number(getValue(r, 'quantidade')) || 1,
-                description: getValue(r, 'descricao') || 'Item Importado',
-                local: getValue(r, 'local') || 'Almoxarifado',
-                request_date: normalizeDate(getValue(r, 'solicitacao')),
-                approval_date: normalizeDate(getValue(r, 'aprovacao')),
-                entry_date: normalizeDate(getValue(r, 'entrada'))
-             }));
-             const { error } = await supabase.from('purchases').insert(newPurchases);
-             if (error) throw error;
-             setPurchases(prev => [...newPurchases.map(p => ({...p, requestDate: p.request_date, approvalDate: p.approval_date, entryDate: p.entry_date})), ...prev]);
-             count = newPurchases.length;
-
-        } else if (detectedType === 'weekly_schedule') {
-             const newSchedule = rows.map(r => ({
-                 id: generateId('S-'),
-                 shift: getValue(r, 'turno') || 'MANHÃ',
-                 monday: getValue(r, 'segunda') || '-',
-                 tuesday: getValue(r, 'terca') || '-',
-                 wednesday: getValue(r, 'quarta') || '-',
-                 thursday: getValue(r, 'quinta') || '-',
-                 friday: getValue(r, 'sexta') || '-',
-                 saturday: getValue(r, 'sabado') || '-',
-                 work_start_date: normalizeDate(getValue(r, 'inicio_obra')),
-                 work_end_date: normalizeDate(getValue(r, 'fim_obra')),
-                 work_notice_date: normalizeDate(getValue(r, 'aviso_obra')),
-             }));
-             const { error } = await supabase.from('schedule').insert(newSchedule);
-             if (error) throw error;
-             setSchedule(prev => [...newSchedule.map(s => ({...s, workStartDate: s.work_start_date, workEndDate: s.work_end_date, workNoticeDate: s.work_notice_date})), ...prev]);
-             count = newSchedule.length;
-
-        } else if (detectedType === 'monthly_schedule') {
-             const newMonthly = rows.map(r => ({
-                 id: generateId('M-'),
-                 shift: getValue(r, 'turno') || 'AREA',
-                 week1: getValue(r, 'semana 1') || '-',
-                 week2: getValue(r, 'semana 2') || '-',
-                 week3: getValue(r, 'semana 3') || '-',
-                 week4: getValue(r, 'semana 4') || '-',
-                 work_start_date: normalizeDate(getValue(r, 'inicio_obra')),
-                 work_end_date: normalizeDate(getValue(r, 'fim_obra')),
-                 work_notice_date: normalizeDate(getValue(r, 'aviso_obra')),
-             }));
-             const { error } = await supabase.from('monthly_schedule').insert(newMonthly);
-             if (error) throw error;
-             setMonthlySchedule(prev => [...newMonthly.map(s => ({...s, workStartDate: s.work_start_date, workEndDate: s.work_end_date, workNoticeDate: s.work_notice_date})), ...prev]);
-             count = newMonthly.length;
-        
-        } else if (detectedType === 'third_party') {
-             const newThirdParty = rows.map(r => ({
-                 id: generateId('TP-'),
-                 company: getValue(r, 'empresa') || 'Terceiro',
-                 service: getValue(r, 'servico') || '-',
-                 frequency: (getValue(r, 'frequencia') || 'Mensal') as any,
-                 contact: getValue(r, 'contato') || '-',
-                 work_start_date: normalizeDate(getValue(r, 'inicio_obra')),
-                 work_end_date: normalizeDate(getValue(r, 'fim_obra')),
-                 work_notice_date: normalizeDate(getValue(r, 'aviso_obra')),
-             }));
-             const { error } = await supabase.from('third_party_schedule').insert(newThirdParty);
-             if (error) throw error;
-             setThirdPartySchedule(prev => [...newThirdParty.map(s => ({...s, workStartDate: s.work_start_date, workEndDate: s.work_end_date, workNoticeDate: s.work_notice_date})), ...prev]);
-             count = newThirdParty.length;
-
-        } else {
-             // TASKS IMPORT
+        } else if (detectedType === 'tasks') {
              const newTasks = rows.map(r => {
-                 const rawService = getValue(r, 'servico') || getValue(r, 'tipo');
-                 const rawTower = getValue(r, 'torre');
-                 const rawSector = getValue(r, 'setor');
-                 const rawResp = getValue(r, 'responsavel') || getValue(r, 'colaborador');
-                 const rawSit = getValue(r, 'situacao') || getValue(r, 'status');
-                 const rawType = getValue(r, 'tipo_manutencao') || 'Corretiva';
-
-                 const serviceId = findOrAdd('services', rawService || 'Serviço Geral');
-                 const towerId = findOrAdd('towers', rawTower || 'Geral');
-                 const sectorId = findOrAdd('sectors', rawSector || 'Geral');
-                 const responsibleId = findOrAdd('responsibles', rawResp || 'Não Identificado');
-                 
-                 const situationName = normalizeSituation(rawSit); 
-                 const criticality = normalizeCriticality(getValue(r, 'criticidade'));
-                 
-                 const sitExists = tempSettings.situations.find(s => s.name.toLowerCase() === situationName.toLowerCase());
-                 if (!sitExists) {
-                     const pendingSit = pendingSettingsInserts['situations'].find(s => s.name.toLowerCase() === situationName.toLowerCase());
-                     if (!pendingSit) {
-                         const newSitId = generateId('Cat-');
-                         pendingSettingsInserts['situations'].push({ id: newSitId, name: situationName });
-                     }
-                 }
-
+                 const serviceId = findOrAdd('services', getValue(r, 'servico') || 'Geral');
+                 const towerId = findOrAdd('towers', getValue(r, 'torre') || 'Geral');
+                 const sectorId = findOrAdd('sectors', getValue(r, 'setor') || 'Geral');
+                 const responsibleId = findOrAdd('responsibles', getValue(r, 'responsavel') || 'N/A');
                  return {
                     id: generateId('T-'),
-                    title: getValue(r, 'titulo') || getValue(r, 'descricao') || 'Tarefa Importada',
-                    sector_id: sectorId, 
-                    service_id: serviceId,
-                    tower_id: towerId,
+                    title: getValue(r, 'titulo') || 'Importada',
+                    sector_id: sectorId, service_id: serviceId, tower_id: towerId,
                     location: getValue(r, 'local') || 'Geral',
                     responsible_id: responsibleId,
-                    situation: situationName,
-                    criticality: criticality,
-                    // ALTERADO: de maintenance_type para type
-                    type: rawType,
+                    situation: normalizeSituation(getValue(r, 'situacao')),
+                    criticality: normalizeCriticality(getValue(r, 'criticidade')),
+                    maintenance_type: getValue(r, 'tipo') || 'Corretiva',
                     materials: [],
                     call_date: normalizeDate(getValue(r, 'data')),
                     created_at: new Date().toISOString()
                  };
              });
-
-             let hasUpdates = false;
-             await Promise.all(
-                 (Object.keys(pendingSettingsInserts) as Array<keyof SettingsState>).map(async (key) => {
-                     const items = pendingSettingsInserts[key];
-                     if (items.length > 0) {
-                         const { error } = await supabase.from(key).insert(items);
-                         if (error) throw new Error(`Falha ao criar novos cadastros para ${key}: ${error.message}`);
-                         tempSettings[key] = [...tempSettings[key], ...items];
-                         hasUpdates = true;
-                     }
-                 })
-             );
-
-             if (hasUpdates) setSettings(tempSettings);
-
-             const { error } = await supabase.from('tasks').insert(newTasks);
-             if (error) throw error;
-
-             const feTasks = newTasks.map(t => ({
-                 id: t.id,
-                 title: t.title,
-                 sectorId: t.sector_id,
-                 serviceId: t.service_id,
-                 towerId: t.tower_id,
-                 location: t.location,
-                 responsibleId: t.responsible_id,
-                 situation: t.situation,
-                 criticality: t.criticality,
-                 type: t.type as any,
-                 materials: t.materials,
-                 callDate: t.call_date,
-                 createdAt: t.created_at
+             await Promise.all(Object.keys(pendingSettingsInserts).map(async (key) => {
+                const items = pendingSettingsInserts[key as keyof SettingsState];
+                if (items.length > 0) await supabase.from(key).insert(items);
              }));
-
-             setTasks(prev => [...feTasks, ...prev]);
+             await supabase.from('tasks').insert(newTasks);
+             refreshData();
              count = newTasks.length;
-             detectedType = 'tasks';
         }
 
-        return { success: true, message: 'Importação realizada e salva no servidor!', type: detectedType, count };
-
+        return { success: true, message: 'Importação realizada!', type: detectedType, count };
     } catch (error: any) {
-        console.error("Import Error Full Object:", error);
-        return { success: false, message: 'Erro ao salvar: ' + (error.message || 'Desconhecido') };
+        return { success: false, message: 'Erro: ' + (error.message || 'Desconhecido') };
     }
   };
 
