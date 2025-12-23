@@ -174,12 +174,17 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     const feTask = { ...newTask, id: tempId, createdAt: now };
     setTasks((prev) => [feTask, ...prev]);
 
-    const { error } = await supabase.from('tasks').insert(dbTask);
-    
-    if (error) {
-        console.error('Supabase Error (Task):', error);
+    try {
+        const { error } = await supabase.from('tasks').insert(dbTask);
+        if (error) throw error;
+    } catch (err: any) {
         setTasks((prev) => prev.filter(t => t.id !== tempId));
-        alert(`ERRO AO SALVAR TAREFA: ${error.message}. Verifique se a coluna 'type' existe no banco de dados.`);
+        if (err.message === 'Failed to fetch') {
+            alert('ERRO DE CONEXÃO: Não foi possível alcançar o servidor. Verifique sua internet.');
+        } else {
+            alert(`ERRO AO SALVAR TAREFA: ${err.message}`);
+        }
+        console.error('Task Save Error:', err);
     }
   };
 
@@ -201,35 +206,48 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate;
     if (updates.endDate !== undefined) dbUpdates.end_date = updates.endDate;
 
-    const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
-    if (error) { alert(`Erro ao atualizar: ${error.message}`); refreshData(); }
+    try {
+        const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
+        if (error) throw error;
+    } catch (err: any) {
+        alert(`Erro ao atualizar: ${err.message === 'Failed to fetch' ? 'Sem internet' : err.message}`);
+        refreshData(); 
+    }
   };
 
   const deleteTask = async (id: string) => {
     setTasks((prev) => prev.filter((t) => t.id !== id));
-    const { error } = await supabase.from('tasks').delete().eq('id', id);
-    if (error) { alert(`Erro ao excluir: ${error.message}`); refreshData(); }
+    try {
+        const { error } = await supabase.from('tasks').delete().eq('id', id);
+        if (error) throw error;
+    } catch (err: any) {
+        alert(`Erro ao excluir: ${err.message === 'Failed to fetch' ? 'Sem internet' : err.message}`);
+        refreshData();
+    }
   };
 
   // --- VISITS ---
   const addVisit = async (item: Omit<Visit, 'id'>) => {
      const newId = generateId('V-');
-     const newItem = { ...item, id: newId };
-     setVisits(prev => [newItem, ...prev]);
-     const { error } = await supabase.from('visits').insert({ id: newId, tower: item.tower, unit: item.unit, situation: item.situation, time: item.time, collaborator: item.collaborator, status: item.status, return_date: item.returnDate });
-     if (error) { setVisits(prev => prev.filter(v => v.id !== newId)); alert(`ERRO: ${error.message}`); }
+     setVisits(prev => [{ ...item, id: newId }, ...prev]);
+     try {
+         const { error } = await supabase.from('visits').insert({ id: newId, tower: item.tower, unit: item.unit, situation: item.situation, time: item.time, collaborator: item.collaborator, status: item.status, return_date: item.returnDate });
+         if (error) throw error;
+     } catch (err: any) {
+         setVisits(prev => prev.filter(v => v.id !== newId));
+         alert(`Erro ao salvar visita: ${err.message === 'Failed to fetch' ? 'Sem internet' : err.message}`);
+     }
   };
   const updateVisit = async (id: string, updates: Partial<Visit>) => {
      setVisits(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
      const dbUpdates: any = { ...updates };
      if(updates.returnDate !== undefined) { dbUpdates.return_date = updates.returnDate; delete dbUpdates.returnDate; }
      const { error } = await supabase.from('visits').update(dbUpdates).eq('id', id);
-     if (error) { alert(`Erro: ${error.message}`); refreshData(); }
+     if (error) refreshData();
   };
   const deleteVisit = async (id: string) => {
      setVisits(prev => prev.filter(v => v.id !== id));
-     const { error } = await supabase.from('visits').delete().eq('id', id);
-     if (error) { alert(`Erro: ${error.message}`); refreshData(); }
+     await supabase.from('visits').delete().eq('id', id);
   };
 
   // --- SCHEDULES ---
@@ -237,14 +255,12 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       const newId = generateId('S-');
       setSchedule(prev => [{...item, id: newId}, ...prev]);
       const { error } = await supabase.from('schedule').insert({ id: newId, shift: item.shift, monday: item.monday, tuesday: item.tuesday, wednesday: item.wednesday, thursday: item.thursday, friday: item.friday, saturday: item.saturday, work_start_date: item.workStartDate, work_end_date: item.workEndDate, work_notice_date: item.workNoticeDate });
-      if (error) { refreshData(); alert(`Erro: ${error.message}`); }
+      if (error) refreshData();
   };
   const updateScheduleItem = async (id: string, updates: Partial<ScheduleItem>) => {
       setSchedule(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
       const dbUpdates: any = { ...updates };
       if(updates.workStartDate) dbUpdates.work_start_date = updates.workStartDate;
-      if(updates.workEndDate) dbUpdates.work_end_date = updates.workEndDate;
-      if(updates.workNoticeDate) dbUpdates.work_notice_date = updates.workNoticeDate;
       const { error } = await supabase.from('schedule').update(dbUpdates).eq('id', id);
       if (error) refreshData();
   };
@@ -299,9 +315,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
   const updatePaintingProject = async (id: string, updates: Partial<PaintingProject>) => {
       setPaintingProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
       const dbUpdates: any = { ...updates };
-      if(updates.endDateForecast) dbUpdates.end_date_forecast = updates.endDateForecast;
-      if(updates.startDate) dbUpdates.start_date = updates.startDate;
-      if(updates.paintDetails) dbUpdates.paint_details = updates.paintDetails;
       const { error } = await supabase.from('painting_projects').update(dbUpdates).eq('id', id);
       if (error) refreshData();
   };
@@ -319,9 +332,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
   const updatePurchase = async (id: string, updates: Partial<PurchaseRequest>) => {
       setPurchases(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
       const dbUpdates: any = { ...updates };
-      if(updates.requestDate) dbUpdates.request_date = updates.requestDate;
-      if(updates.approvalDate) dbUpdates.approval_date = updates.approvalDate;
-      if(updates.entryDate) dbUpdates.entry_date = updates.entryDate;
       const { error } = await supabase.from('purchases').update(dbUpdates).eq('id', id);
       if (error) refreshData();
   };
@@ -377,7 +387,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         };
         const rows = lines.slice(1).map(line => line.trim() ? (delimiter === ',' ? line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/) : line.split(';')) : null).filter(r => r && r.length > 1) as string[][];
         
-        // Simples detecção de tipo por cabeçalho
         let detectedType = headers.some(h => h.includes('unidade')) ? 'visits' : 'tasks';
         let count = rows.length;
         
