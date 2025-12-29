@@ -48,6 +48,10 @@ interface DataContextType {
   removeSettingItem: (category: keyof SettingsState, id: string) => void;
   
   exportTasksToCSV: () => void;
+  exportVisitsToCSV: () => void;
+  exportThirdPartyToCSV: () => void;
+  exportPaintingToCSV: () => void;
+  exportPurchasesToCSV: () => void;
   importDataFromCSV: (csvContent: string) => Promise<{ success: boolean; message: string; type?: string; count?: number }>;
   
   clearAllData: () => Promise<void>;
@@ -61,6 +65,11 @@ const initialSettings: SettingsState = {
 
 const generateId = (prefix: string = '') => {
   return `${prefix}${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 5)}`;
+};
+
+const formatDateForDb = (dateStr?: string) => {
+    if (!dateStr || dateStr.trim() === '') return null;
+    return dateStr;
 };
 
 export const DataProvider = ({ children }: { children?: ReactNode }) => {
@@ -147,11 +156,20 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     refreshData();
   }, [refreshData]);
 
+  const handleError = (err: any, context: string) => {
+      console.error(`${context} Error:`, err);
+      if (err.message === 'Failed to fetch') {
+          alert(`ERRO DE CONEXÃO (${context}): Verifique sua internet.`);
+      } else {
+          alert(`ERRO AO SALVAR (${context}): ${err.message}. Verifique se a tabela e colunas existem no Supabase.`);
+      }
+      refreshData();
+  };
+
   // --- TASKS ---
   const addTask = async (newTask: Omit<Task, 'id' | 'createdAt'>) => {
     const tempId = generateId('T-');
     const now = new Date().toISOString();
-    
     const dbTask = {
         id: tempId,
         title: newTask.title,
@@ -164,33 +182,19 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         criticality: newTask.criticality,
         type: newTask.type, 
         materials: newTask.materials,
-        call_date: newTask.callDate,
-        start_date: newTask.startDate,
-        end_date: newTask.endDate,
+        call_date: formatDateForDb(newTask.callDate),
+        start_date: formatDateForDb(newTask.startDate),
+        end_date: formatDateForDb(newTask.endDate),
         description: newTask.description,
         created_at: now
     };
-
-    const feTask = { ...newTask, id: tempId, createdAt: now };
-    setTasks((prev) => [feTask, ...prev]);
-
-    try {
-        const { error } = await supabase.from('tasks').insert(dbTask);
-        if (error) throw error;
-    } catch (err: any) {
-        setTasks((prev) => prev.filter(t => t.id !== tempId));
-        if (err.message === 'Failed to fetch') {
-            alert('ERRO DE CONEXÃO: Não foi possível alcançar o servidor. Verifique sua internet.');
-        } else {
-            alert(`ERRO AO SALVAR TAREFA: ${err.message}`);
-        }
-        console.error('Task Save Error:', err);
-    }
+    setTasks(prev => [{ ...newTask, id: tempId, createdAt: now }, ...prev]);
+    const { error } = await supabase.from('tasks').insert(dbTask);
+    if (error) handleError(error, 'Tarefa');
   };
 
   const updateTask = async (id: string, updates: Partial<Task>) => {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...updates } : t)));
-
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
     const dbUpdates: any = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.sectorId !== undefined) dbUpdates.sector_id = updates.sectorId;
@@ -202,65 +206,83 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     if (updates.criticality !== undefined) dbUpdates.criticality = updates.criticality;
     if (updates.type !== undefined) dbUpdates.type = updates.type;
     if (updates.materials !== undefined) dbUpdates.materials = updates.materials;
-    if (updates.callDate !== undefined) dbUpdates.call_date = updates.callDate;
-    if (updates.startDate !== undefined) dbUpdates.start_date = updates.startDate;
-    if (updates.endDate !== undefined) dbUpdates.end_date = updates.endDate;
+    if (updates.callDate !== undefined) dbUpdates.call_date = formatDateForDb(updates.callDate);
+    if (updates.startDate !== undefined) dbUpdates.start_date = formatDateForDb(updates.startDate);
+    if (updates.endDate !== undefined) dbUpdates.end_date = formatDateForDb(updates.endDate);
 
-    try {
-        const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
-        if (error) throw error;
-    } catch (err: any) {
-        alert(`Erro ao atualizar: ${err.message === 'Failed to fetch' ? 'Sem internet' : err.message}`);
-        refreshData(); 
-    }
+    const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
+    if (error) handleError(error, 'Tarefa Update');
   };
 
   const deleteTask = async (id: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-    try {
-        const { error } = await supabase.from('tasks').delete().eq('id', id);
-        if (error) throw error;
-    } catch (err: any) {
-        alert(`Erro ao excluir: ${err.message === 'Failed to fetch' ? 'Sem internet' : err.message}`);
-        refreshData();
-    }
+    setTasks(prev => prev.filter(t => t.id !== id));
+    const { error } = await supabase.from('tasks').delete().eq('id', id);
+    if (error) handleError(error, 'Tarefa Delete');
   };
 
   // --- VISITS ---
   const addVisit = async (item: Omit<Visit, 'id'>) => {
      const newId = generateId('V-');
      setVisits(prev => [{ ...item, id: newId }, ...prev]);
-     try {
-         const { error } = await supabase.from('visits').insert({ id: newId, tower: item.tower, unit: item.unit, situation: item.situation, time: item.time, collaborator: item.collaborator, status: item.status, return_date: item.returnDate });
-         if (error) throw error;
-     } catch (err: any) {
-         setVisits(prev => prev.filter(v => v.id !== newId));
-         alert(`Erro ao salvar visita: ${err.message === 'Failed to fetch' ? 'Sem internet' : err.message}`);
-     }
+     const { error } = await supabase.from('visits').insert({ id: newId, tower: item.tower, unit: item.unit, situation: item.situation, time: item.time, collaborator: item.collaborator, status: item.status, return_date: formatDateForDb(item.returnDate) });
+     if (error) handleError(error, 'Visita');
   };
   const updateVisit = async (id: string, updates: Partial<Visit>) => {
      setVisits(prev => prev.map(v => v.id === id ? { ...v, ...updates } : v));
      const dbUpdates: any = { ...updates };
-     if(updates.returnDate !== undefined) { dbUpdates.return_date = updates.returnDate; delete dbUpdates.returnDate; }
+     if(updates.returnDate !== undefined) dbUpdates.return_date = formatDateForDb(updates.returnDate);
      const { error } = await supabase.from('visits').update(dbUpdates).eq('id', id);
-     if (error) refreshData();
+     if (error) handleError(error, 'Visita Update');
   };
   const deleteVisit = async (id: string) => {
      setVisits(prev => prev.filter(v => v.id !== id));
-     await supabase.from('visits').delete().eq('id', id);
+     const { error } = await supabase.from('visits').delete().eq('id', id);
+     if (error) handleError(error, 'Visita Delete');
   };
 
-  // --- SCHEDULES ---
+  // --- SCHEDULES & OBRAS (Third Party) ---
+  const addThirdPartyScheduleItem = async (item: Omit<ThirdPartyScheduleItem, 'id'>) => {
+      const newId = generateId('TP-');
+      setThirdPartySchedule(prev => [{...item, id: newId}, ...prev]);
+      const { error } = await supabase.from('third_party_schedule').insert({ 
+          id: newId, 
+          company: item.company, 
+          service: item.service, 
+          frequency: item.frequency, 
+          contact: item.contact, 
+          work_start_date: formatDateForDb(item.workStartDate), 
+          work_end_date: formatDateForDb(item.workEndDate), 
+          work_notice_date: formatDateForDb(item.workNoticeDate) 
+      });
+      if (error) handleError(error, 'Obras/Cronograma');
+  };
+  const updateThirdPartyScheduleItem = async (id: string, updates: Partial<ThirdPartyScheduleItem>) => {
+      setThirdPartySchedule(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+      const dbUpdates: any = { ...updates };
+      if(updates.workStartDate !== undefined) dbUpdates.work_start_date = formatDateForDb(updates.workStartDate);
+      if(updates.workEndDate !== undefined) dbUpdates.work_end_date = formatDateForDb(updates.workEndDate);
+      if(updates.workNoticeDate !== undefined) dbUpdates.work_notice_date = formatDateForDb(updates.workNoticeDate);
+      
+      const { error } = await supabase.from('third_party_schedule').update(dbUpdates).eq('id', id);
+      if (error) handleError(error, 'Obras/Cronograma Update');
+  };
+  const deleteThirdPartyScheduleItem = async (id: string) => {
+      setThirdPartySchedule(prev => prev.filter(s => s.id !== id));
+      const { error } = await supabase.from('third_party_schedule').delete().eq('id', id);
+      if (error) handleError(error, 'Obras/Cronograma Delete');
+  };
+
+  // --- OTHERS ---
   const addScheduleItem = async (item: Omit<ScheduleItem, 'id'>) => {
       const newId = generateId('S-');
       setSchedule(prev => [{...item, id: newId}, ...prev]);
-      const { error } = await supabase.from('schedule').insert({ id: newId, shift: item.shift, monday: item.monday, tuesday: item.tuesday, wednesday: item.wednesday, thursday: item.thursday, friday: item.friday, saturday: item.saturday, work_start_date: item.workStartDate, work_end_date: item.workEndDate, work_notice_date: item.workNoticeDate });
-      if (error) refreshData();
+      const { error } = await supabase.from('schedule').insert({ id: newId, shift: item.shift, monday: item.monday, tuesday: item.tuesday, wednesday: item.wednesday, thursday: item.thursday, friday: item.friday, saturday: item.saturday, work_start_date: formatDateForDb(item.workStartDate), work_end_date: formatDateForDb(item.workEndDate), work_notice_date: formatDateForDb(item.workNoticeDate) });
+      if (error) handleError(error, 'Escala');
   };
   const updateScheduleItem = async (id: string, updates: Partial<ScheduleItem>) => {
       setSchedule(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
       const dbUpdates: any = { ...updates };
-      if(updates.workStartDate) dbUpdates.work_start_date = updates.workStartDate;
+      if(updates.workStartDate) dbUpdates.work_start_date = formatDateForDb(updates.workStartDate);
       const { error } = await supabase.from('schedule').update(dbUpdates).eq('id', id);
       if (error) refreshData();
   };
@@ -272,13 +294,13 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
   const addMonthlyScheduleItem = async (item: Omit<MonthlyScheduleItem, 'id'>) => {
       const newId = generateId('M-');
       setMonthlySchedule(prev => [{...item, id: newId}, ...prev]);
-      const { error } = await supabase.from('monthly_schedule').insert({ id: newId, shift: item.shift, week1: item.week1, week2: item.week2, week3: item.week3, week4: item.week4, work_start_date: item.workStartDate, work_end_date: item.workEndDate, work_notice_date: item.workNoticeDate });
-      if (error) refreshData();
+      const { error } = await supabase.from('monthly_schedule').insert({ id: newId, shift: item.shift, week1: item.week1, week2: item.week2, week3: item.week3, week4: item.week4, work_start_date: formatDateForDb(item.workStartDate), work_end_date: formatDateForDb(item.workEndDate), work_notice_date: formatDateForDb(item.workNoticeDate) });
+      if (error) handleError(error, 'Mensal');
   };
   const updateMonthlyScheduleItem = async (id: string, updates: Partial<MonthlyScheduleItem>) => {
       setMonthlySchedule(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
       const dbUpdates: any = { ...updates };
-      if(updates.workStartDate) dbUpdates.work_start_date = updates.workStartDate;
+      if(updates.workStartDate) dbUpdates.work_start_date = formatDateForDb(updates.workStartDate);
       const { error } = await supabase.from('monthly_schedule').update(dbUpdates).eq('id', id);
       if (error) refreshData();
   };
@@ -287,34 +309,17 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       await supabase.from('monthly_schedule').delete().eq('id', id);
   };
 
-  const addThirdPartyScheduleItem = async (item: Omit<ThirdPartyScheduleItem, 'id'>) => {
-      const newId = generateId('TP-');
-      setThirdPartySchedule(prev => [{...item, id: newId}, ...prev]);
-      const { error } = await supabase.from('third_party_schedule').insert({ id: newId, company: item.company, service: item.service, frequency: item.frequency, contact: item.contact, work_start_date: item.workStartDate, work_end_date: item.workEndDate, work_notice_date: item.workNoticeDate });
-      if (error) refreshData();
-  };
-  const updateThirdPartyScheduleItem = async (id: string, updates: Partial<ThirdPartyScheduleItem>) => {
-      setThirdPartySchedule(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
-      const dbUpdates: any = { ...updates };
-      if(updates.workStartDate) dbUpdates.work_start_date = updates.workStartDate;
-      const { error } = await supabase.from('third_party_schedule').update(dbUpdates).eq('id', id);
-      if (error) refreshData();
-  };
-  const deleteThirdPartyScheduleItem = async (id: string) => {
-      setThirdPartySchedule(prev => prev.filter(s => s.id !== id));
-      await supabase.from('third_party_schedule').delete().eq('id', id);
-  };
-
-  // --- PAINTING & PURCHASES ---
   const addPaintingProject = async (item: Omit<PaintingProject, 'id'>) => {
       const newId = generateId('P-');
       setPaintingProjects(prev => [{...item, id: newId}, ...prev]);
-      const { error } = await supabase.from('painting_projects').insert({ id: newId, tower: item.tower, local: item.local, criticality: item.criticality, start_date: item.startDate, end_date_forecast: item.endDateForecast, status: item.status, paint_details: item.paintDetails, quantity: item.quantity });
-      if (error) refreshData();
+      const { error } = await supabase.from('painting_projects').insert({ id: newId, tower: item.tower, local: item.local, criticality: item.criticality, start_date: formatDateForDb(item.startDate), end_date_forecast: formatDateForDb(item.endDateForecast), status: item.status, paint_details: item.paintDetails, quantity: item.quantity });
+      if (error) handleError(error, 'Pintura');
   };
   const updatePaintingProject = async (id: string, updates: Partial<PaintingProject>) => {
       setPaintingProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
       const dbUpdates: any = { ...updates };
+      if(updates.startDate) dbUpdates.start_date = formatDateForDb(updates.startDate);
+      if(updates.endDateForecast) dbUpdates.end_date_forecast = formatDateForDb(updates.endDateForecast);
       const { error } = await supabase.from('painting_projects').update(dbUpdates).eq('id', id);
       if (error) refreshData();
   };
@@ -326,12 +331,13 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
   const addPurchase = async (item: Omit<PurchaseRequest, 'id'>) => {
       const newId = generateId('R-');
       setPurchases(prev => [{...item, id: newId}, ...prev]);
-      const { error } = await supabase.from('purchases').insert({ id: newId, quantity: item.quantity, description: item.description, local: item.local, request_date: item.requestDate, approval_date: item.approvalDate, entry_date: item.entryDate });
-      if (error) refreshData();
+      const { error } = await supabase.from('purchases').insert({ id: newId, quantity: item.quantity, description: item.description, local: item.local, request_date: formatDateForDb(item.requestDate), approval_date: formatDateForDb(item.approvalDate), entry_date: formatDateForDb(item.entryDate) });
+      if (error) handleError(error, 'Compra');
   };
   const updatePurchase = async (id: string, updates: Partial<PurchaseRequest>) => {
       setPurchases(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
       const dbUpdates: any = { ...updates };
+      if(updates.requestDate) dbUpdates.request_date = formatDateForDb(updates.requestDate);
       const { error } = await supabase.from('purchases').update(dbUpdates).eq('id', id);
       if (error) refreshData();
   };
@@ -343,30 +349,58 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
   // --- SETTINGS ---
   const addSettingItem = async (category: keyof SettingsState, name: string) => {
     const newId = generateId('Cat-');
-    setSettings((prev) => ({ ...prev, [category]: [...prev[category], { id: newId, name }] }));
+    setSettings(prev => ({ ...prev, [category]: [...prev[category], { id: newId, name }] }));
     const { error } = await supabase.from(category).insert({ id: newId, name });
     if (error) refreshData();
   };
   const updateSettingItem = async (category: keyof SettingsState, id: string, newName: string) => {
-    setSettings((prev) => ({ ...prev, [category]: prev[category].map(item => item.id === id ? { ...item, name: newName } : item) }));
+    setSettings(prev => ({ ...prev, [category]: prev[category].map(item => item.id === id ? { ...item, name: newName } : item) }));
     await supabase.from(category).update({ name: newName }).eq('id', id);
   };
   const removeSettingItem = async (category: keyof SettingsState, id: string) => {
-    setSettings((prev) => ({ ...prev, [category]: prev[category].filter((item) => item.id !== id) }));
+    setSettings(prev => ({ ...prev, [category]: prev[category].filter(item => item.id !== id) }));
     await supabase.from(category).delete().eq('id', id);
+  };
+
+  // --- EXPORT FUNCTIONS ---
+  const downloadCSV = (content: string, filename: string) => {
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI("data:text/csv;charset=utf-8," + content));
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
   };
 
   const exportTasksToCSV = () => {
     const headers = ['ID', 'Serviço', 'Tipo', 'Torre', 'Local', 'Situação', 'Criticidade', 'Data Chamado', 'Materiais'];
     const findName = (list: CatalogItem[], id: string) => list.find(i => i.id === id)?.name || id;
     const rows = tasks.map(t => [t.id, findName(settings.services, t.serviceId), t.type, findName(settings.towers, t.towerId), t.location, t.situation, t.criticality, t.callDate, t.materials.map(mId => findName(settings.materials, mId)).join('; ')]);
-    const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csvContent));
-    link.setAttribute("download", "tarefas_vilaprivilege.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    downloadCSV(headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n"), "tarefas.csv");
+  };
+
+  const exportVisitsToCSV = () => {
+      const headers = ['ID', 'Torre', 'Unidade', 'Situação', 'Hora', 'Colaborador', 'Status', 'Retorno'];
+      const rows = visits.map(v => [v.id, v.tower, v.unit, v.situation, v.time, v.collaborator, v.status, v.returnDate]);
+      downloadCSV(headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n"), "visitas.csv");
+  };
+
+  const exportThirdPartyToCSV = () => {
+      const headers = ['ID', 'Empresa', 'Serviço', 'Frequência', 'Contato', 'Início', 'Término', 'Aviso'];
+      const rows = thirdPartySchedule.map(tp => [tp.id, tp.company, tp.service, tp.frequency, tp.contact || '', tp.workStartDate || '', tp.workEndDate || '', tp.workNoticeDate || '']);
+      downloadCSV(headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n"), "obras_cronograma.csv");
+  };
+
+  const exportPaintingToCSV = () => {
+      const headers = ['ID', 'Torre', 'Local', 'Criticidade', 'Início', 'Previsão', 'Status', 'Detalhes', 'Quantidade'];
+      const rows = paintingProjects.map(p => [p.id, p.tower, p.local, p.criticality, p.startDate, p.endDateForecast, p.status, p.paintDetails, p.quantity]);
+      downloadCSV(headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n"), "pintura.csv");
+  };
+
+  const exportPurchasesToCSV = () => {
+      const headers = ['ID', 'Quantidade', 'Descrição', 'Local', 'Data Solicitação', 'Data Aprovação', 'Data Entrada'];
+      const rows = purchases.map(p => [p.id, p.quantity, p.description, p.local, p.requestDate, p.approvalDate || '', p.entryDate || '']);
+      downloadCSV(headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n"), "compras.csv");
   };
 
   const clearAllData = async () => {
@@ -391,10 +425,10 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         let count = rows.length;
         
         if (detectedType === 'visits') {
-            const newVisits = rows.map(r => ({ id: generateId('V-'), tower: getValue(r, 'torre') || 'T1', unit: getValue(r, 'unidade') || '000', situation: getValue(r, 'situacao') || 'Importado', time: getValue(r, 'hora') || '08:00', collaborator: getValue(r, 'colaborador') || '-', status: getValue(r, 'status') || 'Pendente', return_date: getValue(r, 'retorno') || '-' }));
+            const newVisits = rows.map(r => ({ id: generateId('V-'), tower: getValue(r, 'torre') || 'T1', unit: getValue(r, 'unidade') || '000', situation: getValue(r, 'situacao') || 'Importado', time: getValue(r, 'hora') || '08:00', collaborator: getValue(r, 'colaborador') || '-', status: getValue(r, 'status') || 'Pendente', return_date: formatDateForDb(getValue(r, 'retorno')) }));
             await supabase.from('visits').insert(newVisits);
         } else {
-            const newTasks = rows.map(r => ({ id: generateId('T-'), title: getValue(r, 'titulo') || 'Importada', sector_id: generateId('Cat-'), service_id: generateId('Cat-'), tower_id: generateId('Cat-'), location: getValue(r, 'local') || 'Geral', responsible_id: generateId('Cat-'), situation: getValue(r, 'situacao') || 'Aberto', criticality: 'Média', type: getValue(r, 'tipo') || 'Corretiva', materials: [], call_date: new Date().toISOString().split('T')[0], created_at: new Date().toISOString() }));
+            const newTasks = rows.map(r => ({ id: generateId('T-'), title: getValue(r, 'titulo') || 'Importada', sector_id: generateId('Cat-'), service_id: generateId('Cat-'), tower_id: generateId('Cat-'), location: getValue(r, 'local') || 'Geral', responsible_id: generateId('Cat-'), situation: getValue(r, 'situacao') || 'Aberto', criticality: 'Média', type: getValue(r, 'tipo') || 'Corretiva', materials: [], call_date: formatDateForDb(new Date().toISOString().split('T')[0]), created_at: new Date().toISOString() }));
             await supabase.from('tasks').insert(newTasks);
         }
         refreshData();
@@ -408,7 +442,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         addTask, updateTask, deleteTask, addVisit, updateVisit, deleteVisit, addScheduleItem, updateScheduleItem, deleteScheduleItem,
         addMonthlyScheduleItem, updateMonthlyScheduleItem, deleteMonthlyScheduleItem, addThirdPartyScheduleItem, updateThirdPartyScheduleItem, deleteThirdPartyScheduleItem,
         addPaintingProject, updatePaintingProject, deletePaintingProject, addPurchase, updatePurchase, deletePurchase, addSettingItem, updateSettingItem, removeSettingItem, 
-        exportTasksToCSV, importDataFromCSV, clearAllData
+        exportTasksToCSV, exportVisitsToCSV, exportThirdPartyToCSV, exportPaintingToCSV, exportPurchasesToCSV, importDataFromCSV, clearAllData
     }}>{children}</DataContext.Provider>
   );
 };

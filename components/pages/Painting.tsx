@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
-import { Plus, Edit2, Trash2, X, Save, Upload } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, Upload, Download } from 'lucide-react';
 import { PaintingProject, Criticality } from '../../types';
 
 export const Painting = () => {
-  const { paintingProjects, addPaintingProject, updatePaintingProject, deletePaintingProject, settings, importDataFromCSV } = useData();
+  const { paintingProjects, addPaintingProject, updatePaintingProject, deletePaintingProject, settings, importDataFromCSV, exportPaintingToCSV } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Partial<PaintingProject>>({});
 
@@ -84,6 +84,10 @@ export const Painting = () => {
               <span className="hidden sm:inline">Importar</span>
               <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
             </label>
+            <button onClick={exportPaintingToCSV} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+              <Download size={18} />
+              <span className="hidden sm:inline">Exportar</span>
+            </button>
             <button onClick={handleAddNew} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 dark:shadow-none">
                 <Plus size={18} /> Novo Projeto
             </button>
@@ -153,7 +157,6 @@ export const Painting = () => {
                     <button type="button" onClick={() => setIsModalOpen(false)}><X className="text-slate-400" /></button>
                 </div>
                 <form onSubmit={handleSave} className="p-6 space-y-4">
-                    {/* ... Same form fields ... */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm mb-1 text-slate-600 dark:text-slate-400">Torre</label>

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
-import { Plus, Edit2, Trash2, X, Save, Upload } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Save, Upload, Download } from 'lucide-react';
 import { PurchaseRequest } from '../../types';
 
 export const Purchases = () => {
-  const { purchases, addPurchase, updatePurchase, deletePurchase, importDataFromCSV } = useData();
+  const { purchases, addPurchase, updatePurchase, deletePurchase, importDataFromCSV, exportPurchasesToCSV } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Partial<PurchaseRequest>>({});
 
@@ -70,6 +70,10 @@ export const Purchases = () => {
               <span className="hidden sm:inline">Importar</span>
               <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
             </label>
+            <button onClick={exportPurchasesToCSV} className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+              <Download size={18} />
+              <span className="hidden sm:inline">Exportar</span>
+            </button>
             <button onClick={handleAddNew} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 dark:shadow-none">
                 <Plus size={18} /> Nova Solicitação
             </button>
@@ -78,7 +82,7 @@ export const Purchases = () => {
 
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="bg-blue-50 dark:bg-slate-700/30 px-6 py-3 border-b border-slate-200 dark:border-slate-700">
-            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide">Solicitações Recentes</h3>
+            <h3 className="text-sm font-bold text-slate-700 dark:text-white uppercase tracking-wide">Solicitações Recentes</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
