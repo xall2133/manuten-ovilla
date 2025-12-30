@@ -10,7 +10,6 @@ import { TaskList } from './components/pages/TaskList';
 import { Settings } from './components/pages/Settings';
 import { Visits } from './components/pages/Visits';
 import { Schedule } from './components/pages/Schedule';
-import { Works } from './components/pages/Works';
 import { Painting } from './components/pages/Painting';
 import { Purchases } from './components/pages/Purchases';
 
@@ -31,8 +30,6 @@ const AdminRoute = ({ children }: { children?: ReactNode }) => {
 };
 
 const AppContent = () => {
-  const { user } = useAuth();
-  
   return (
     <Routes>
       <Route path="/" element={
@@ -44,7 +41,6 @@ const AppContent = () => {
         <Route path="tasks" element={<TaskList />} />
         <Route path="visits" element={<Visits />} />
         <Route path="schedule" element={<Schedule />} />
-        <Route path="works" element={<Works />} />
         <Route path="painting" element={<Painting />} />
         <Route path="purchases" element={<Purchases />} />
         <Route path="settings" element={

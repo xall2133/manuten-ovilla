@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { Task, SettingsState, CatalogItem, Visit, ScheduleItem, MonthlyScheduleItem, PaintingProject, PurchaseRequest, ThirdPartyScheduleItem } from '../types';
 import { supabase } from '../lib/supabase';
@@ -131,7 +132,16 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         if (visitsRes.data) setVisits(visitsRes.data.map((v:any) => ({ ...v, returnDate: v.return_date })));
         if (scheduleRes.data) setSchedule(scheduleRes.data.map((s:any) => ({ ...s, workStartDate: s.work_start_date, workEndDate: s.work_end_date, workNoticeDate: s.work_notice_date })));
         if (monthlyRes.data) setMonthlySchedule(monthlyRes.data.map((s:any) => ({ ...s, workStartDate: s.work_start_date, workEndDate: s.work_end_date, workNoticeDate: s.work_notice_date })));
-        if (thirdPartyRes.data) setThirdPartySchedule(thirdPartyRes.data.map((s:any) => ({ ...s, workStartDate: s.work_start_date, workEndDate: s.work_end_date, workNoticeDate: s.work_notice_date })));
+        if (thirdPartyRes.data) setThirdPartySchedule(thirdPartyRes.data.map((s:any) => ({ 
+            id: s.id,
+            company: s.company,
+            service: s.service,
+            frequency: s.frequency,
+            contact: s.contact,
+            workStartDate: s.work_start_date, 
+            workEndDate: s.work_end_date, 
+            workNoticeDate: s.work_notice_date 
+        })));
         if (paintingRes.data) setPaintingProjects(paintingRes.data.map((p:any) => ({ ...p, endDateForecast: p.end_date_forecast, startDate: p.start_date, paintDetails: p.paint_details })));
         if (purchasesRes.data) setPurchases(purchasesRes.data.map((p:any) => ({ ...p, requestDate: p.request_date, approvalDate: p.approval_date, entryDate: p.entry_date })));
 
@@ -161,7 +171,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       if (err.message === 'Failed to fetch') {
           alert(`ERRO DE CONEXÃO (${context}): Verifique sua internet.`);
       } else {
-          alert(`ERRO AO SALVAR (${context}): ${err.message}. Verifique se a tabela e colunas existem no Supabase.`);
+          alert(`ERRO AO SALVAR (${context}): ${err.message}. Verifique se a tabela 'third_party_schedule' existe no Supabase com as colunas corretas.`);
       }
       refreshData();
   };
@@ -244,7 +254,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
   const addThirdPartyScheduleItem = async (item: Omit<ThirdPartyScheduleItem, 'id'>) => {
       const newId = generateId('TP-');
       setThirdPartySchedule(prev => [{...item, id: newId}, ...prev]);
-      const { error } = await supabase.from('third_party_schedule').insert({ 
+      
+      const dbItem = { 
           id: newId, 
           company: item.company, 
           service: item.service, 
@@ -253,19 +264,29 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           work_start_date: formatDateForDb(item.workStartDate), 
           work_end_date: formatDateForDb(item.workEndDate), 
           work_notice_date: formatDateForDb(item.workNoticeDate) 
-      });
+      };
+
+      const { error } = await supabase.from('third_party_schedule').insert(dbItem);
       if (error) handleError(error, 'Obras/Cronograma');
   };
+
   const updateThirdPartyScheduleItem = async (id: string, updates: Partial<ThirdPartyScheduleItem>) => {
       setThirdPartySchedule(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
-      const dbUpdates: any = { ...updates };
-      if(updates.workStartDate !== undefined) dbUpdates.work_start_date = formatDateForDb(updates.workStartDate);
-      if(updates.workEndDate !== undefined) dbUpdates.work_end_date = formatDateForDb(updates.workEndDate);
-      if(updates.workNoticeDate !== undefined) dbUpdates.work_notice_date = formatDateForDb(updates.workNoticeDate);
+      
+      // Mapeamento explícito para evitar chaves camelCase no update do Supabase
+      const dbUpdates: any = {};
+      if (updates.company !== undefined) dbUpdates.company = updates.company;
+      if (updates.service !== undefined) dbUpdates.service = updates.service;
+      if (updates.frequency !== undefined) dbUpdates.frequency = updates.frequency;
+      if (updates.contact !== undefined) dbUpdates.contact = updates.contact;
+      if (updates.workStartDate !== undefined) dbUpdates.work_start_date = formatDateForDb(updates.workStartDate);
+      if (updates.workEndDate !== undefined) dbUpdates.work_end_date = formatDateForDb(updates.workEndDate);
+      if (updates.workNoticeDate !== undefined) dbUpdates.work_notice_date = formatDateForDb(updates.workNoticeDate);
       
       const { error } = await supabase.from('third_party_schedule').update(dbUpdates).eq('id', id);
       if (error) handleError(error, 'Obras/Cronograma Update');
   };
+
   const deleteThirdPartyScheduleItem = async (id: string) => {
       setThirdPartySchedule(prev => prev.filter(s => s.id !== id));
       const { error } = await supabase.from('third_party_schedule').delete().eq('id', id);

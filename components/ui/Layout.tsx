@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, Link, Outlet } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, Settings, LogOut, Bell, Menu, Hexagon, Moon, Sun, Users, CalendarDays, PaintBucket, ShoppingCart, RefreshCcw, Wifi, Zap, RefreshCw, HardHat } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Settings, LogOut, Bell, Menu, Hexagon, Moon, Sun, Users, CalendarDays, PaintBucket, ShoppingCart, RefreshCcw, Wifi, Zap, RefreshCw, HardHat, Briefcase } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -12,10 +12,8 @@ export const Layout = () => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
-  // Versão do App (Incrementar manualmente para confirmar deploy)
-  const APP_VERSION = "v1.9";
+  const APP_VERSION = "v2.0";
 
-  // Simple logic to count active high-criticality tasks for notification
   const alertCount = tasks.filter(t => t.criticality === 'Alta' && t.situation !== 'Concluído').length;
 
   const isActive = (path: string) => location.pathname === path;
@@ -24,8 +22,7 @@ export const Layout = () => {
     { path: '/', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/tasks', label: 'Tarefas', icon: ClipboardList },
     { path: '/visits', label: 'Visitas', icon: Users },
-    { path: '/schedule', label: 'Cronograma', icon: CalendarDays },
-    { path: '/works', label: 'Obras', icon: HardHat },
+    { path: '/schedule', label: 'Cronograma / Obra', icon: CalendarDays },
     { path: '/painting', label: 'Pintura', icon: PaintBucket },
     { path: '/purchases', label: 'Compras', icon: ShoppingCart },
   ];
@@ -39,7 +36,6 @@ export const Layout = () => {
   };
 
   const handleHardReload = () => {
-      // Limpa caches e recarrega
       if ('caches' in window) {
           caches.keys().then((names) => {
               names.forEach((name) => {
@@ -127,7 +123,6 @@ export const Layout = () => {
            </button>
 
            <div className="flex items-center gap-4">
-             {/* Theme Toggle - Enabled */}
              <button 
                 onClick={toggleTheme}
                 className="p-2 rounded-full text-slate-500 hover:bg-slate-800 hover:text-slate-300 transition-colors"
@@ -148,14 +143,12 @@ export const Layout = () => {
            </div>
         </header>
 
-        {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
            <div className="max-w-7xl mx-auto">
              <Outlet />
            </div>
         </main>
 
-        {/* Status Bar */}
         <div className="h-10 bg-slate-900 border-t border-white/5 flex items-center justify-between px-6 shrink-0 z-10 text-[10px] md:text-xs text-slate-500 font-mono">
             <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
