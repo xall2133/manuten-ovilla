@@ -22,7 +22,8 @@ export const Layout = () => {
     { path: '/', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/tasks', label: 'Tarefas', icon: ClipboardList },
     { path: '/visits', label: 'Visitas', icon: Users },
-    { path: '/schedule', label: 'Cronograma / Obra', icon: CalendarDays },
+    { path: '/schedule', label: 'Cronograma', icon: CalendarDays },
+    { path: '/works', label: 'Obras', icon: HardHat },
     { path: '/painting', label: 'Pintura', icon: PaintBucket },
     { path: '/purchases', label: 'Compras', icon: ShoppingCart },
   ];
