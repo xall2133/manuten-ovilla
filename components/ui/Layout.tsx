@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, Link, Outlet } from 'react-router-dom';
-import { LayoutDashboard, ClipboardList, Settings, LogOut, Bell, Menu, Hexagon, Moon, Sun, Users, CalendarDays, PaintBucket, ShoppingCart, RefreshCcw, Wifi, Zap, RefreshCw, HardHat, Briefcase } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Settings, LogOut, Bell, Menu, Hexagon, Moon, Sun, Users, CalendarDays, PaintBucket, ShoppingCart, RefreshCcw, Wifi, RefreshCw, HardHat, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -26,6 +26,7 @@ export const Layout = () => {
     { path: '/works', label: 'Obras', icon: HardHat },
     { path: '/painting', label: 'Pintura', icon: PaintBucket },
     { path: '/purchases', label: 'Compras', icon: ShoppingCart },
+    { path: '/trash', label: 'Lixeira', icon: Trash2 },
   ];
 
   if (user?.role === 'admin') {

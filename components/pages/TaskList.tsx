@@ -395,6 +395,7 @@ export const TaskList = () => {
       </div>
 
       <TaskFormModal 
+        key={editingTask?.id || 'new'}
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
         initialData={editingTask}

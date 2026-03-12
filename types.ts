@@ -121,3 +121,12 @@ export interface PurchaseRequest {
   approvalDate?: string;
   entryDate?: string;
 }
+
+export interface TrashItem {
+  id: string;
+  originalId: string;
+  tableName: string;
+  title: string;
+  data: any;
+  deletedAt: string;
+}

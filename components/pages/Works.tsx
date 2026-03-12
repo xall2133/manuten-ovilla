@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { Edit2, Save, X, Trash2, Plus, Upload, Download, Briefcase, Filter, AlertTriangle, HardHat, CalendarRange, Copy, Loader2 } from 'lucide-react';
-import { ThirdPartyScheduleItem, Frequency } from '../../types';
+import { ThirdPartyScheduleItem } from '../../types';
 
 export const Works = () => {
   const { 
@@ -41,7 +41,8 @@ export const Works = () => {
   const handleDuplicate = async (item: ThirdPartyScheduleItem) => {
       try {
           setIsDuplicating(String(item.id));
-          const { id, ...duplicateData } = item;
+          const duplicateData = { ...item };
+          delete (duplicateData as any).id;
           await addThirdPartyScheduleItem(duplicateData);
       } catch (error) {
           console.error("Erro ao duplicar:", error);

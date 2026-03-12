@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useData } from '../../context/DataContext';
 import { SettingsState } from '../../types';
-import { Plus, Trash2, Tag, User as UserIcon, Wrench, Briefcase, Box, Edit2, Check, X, Activity, Upload, FileUp, AlertCircle, CheckCircle, AlertTriangle, Eraser } from 'lucide-react';
+import { Plus, Trash2, Tag, User as UserIcon, Wrench, Briefcase, Box, Edit2, Check, X, Activity, Upload, FileUp, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
 
 const TABS = [
   { id: 'towers', label: 'Torres', icon: Box },

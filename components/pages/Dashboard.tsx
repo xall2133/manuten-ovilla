@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend, AreaChart, Area
 } from 'recharts';
-import { AlertTriangle, CheckCircle2, Clock, ListFilter, CalendarDays, Users, PaintBucket, ShoppingCart, ArrowRight, Zap, TrendingUp, AlertCircle, HardHat, Pause, Play, Briefcase } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, ListFilter, CalendarDays, Users, PaintBucket, ShoppingCart, ArrowRight, Zap, TrendingUp, AlertCircle, HardHat, Pause, Play, Briefcase, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 // Neon Palette for Vibe Cod
@@ -87,8 +87,30 @@ interface StatCardProps {
   subTextColor?: string;
 }
 
+const StatCard = ({ title, value, icon: Icon, colorClass, gradient, subText, subTextColor }: StatCardProps) => (
+  <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl border border-white/5 hover:border-white/10 transition-all group relative overflow-hidden">
+    <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${gradient} opacity-10 rounded-bl-full group-hover:opacity-20 transition-opacity`}></div>
+    <div className="flex items-start justify-between relative z-10">
+      <div>
+        <p className="text-sm font-medium text-slate-400 mb-1">{title}</p>
+        <h3 className="text-3xl font-bold text-white font-display tracking-tight">
+           <CountUp end={value} />
+        </h3>
+        {subText && (
+            <p className={`text-xs mt-2 flex items-center gap-1 font-medium ${subTextColor || 'text-slate-500'}`}>
+                {subTextColor ? <AlertCircle size={10} /> : <TrendingUp size={10}/>} {subText}
+            </p>
+        )}
+      </div>
+      <div className={`p-3 rounded-xl bg-slate-800/80 border border-white/5 group-hover:scale-110 transition-transform ${colorClass}`}>
+        <Icon size={24} className="text-white" />
+      </div>
+    </div>
+  </div>
+);
+
 export const Dashboard = () => {
-  const { tasks, settings, visits, schedule, paintingProjects, purchases, thirdPartySchedule } = useData();
+  const { tasks, settings, visits, trash, schedule, paintingProjects, purchases, thirdPartySchedule } = useData();
   
   // Default 'all' to show history immediately
   const [dateRange, setDateRange] = useState('all');
@@ -209,8 +231,8 @@ export const Dashboard = () => {
   // 1. Situation Pie
   const situationMap = new Map<string, number>();
   filteredTasks.forEach(t => {
-      let rawSit = (t.situation || 'Aberto').trim();
-      let lowerSit = rawSit.toLowerCase();
+      const rawSit = (t.situation || 'Aberto').trim();
+      const lowerSit = rawSit.toLowerCase();
       let displaySit = rawSit;
 
       if (lowerSit.includes('andamento') || lowerSit.includes('execu')) displaySit = 'Em Andamento';
@@ -282,30 +304,8 @@ export const Dashboard = () => {
       return w.workStartDate || w.workEndDate;
   }).slice(0, 3);
 
-  const StatCard = ({ title, value, icon: Icon, colorClass, gradient, subText, subTextColor }: StatCardProps) => (
-    <div className="bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl border border-white/5 hover:border-white/10 transition-all group relative overflow-hidden">
-      <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${gradient} opacity-10 rounded-bl-full group-hover:opacity-20 transition-opacity`}></div>
-      <div className="flex items-start justify-between relative z-10">
-        <div>
-          <p className="text-sm font-medium text-slate-400 mb-1">{title}</p>
-          <h3 className="text-3xl font-bold text-white font-display tracking-tight">
-             <CountUp end={value} />
-          </h3>
-          {subText && (
-              <p className={`text-xs mt-2 flex items-center gap-1 font-medium ${subTextColor || 'text-slate-500'}`}>
-                  {subTextColor ? <AlertCircle size={10} /> : <TrendingUp size={10}/>} {subText}
-              </p>
-          )}
-        </div>
-        <div className={`p-3 rounded-xl bg-slate-800/80 border border-white/5 group-hover:scale-110 transition-transform ${colorClass}`}>
-          <Icon size={24} className="text-white" />
-        </div>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="space-y-4 animate-fade-in pb-10">
+    <>
       {/* Ticker for Alerts */}
       {alerts.length > 0 && <TickerTape items={alerts} />}
 
@@ -643,8 +643,26 @@ export const Dashboard = () => {
                 </div>
             </div>
 
+            {/* TRASH CARD (NEW) */}
+            {trash.length > 0 && (
+                <div className="bg-slate-900/40 backdrop-blur-sm p-5 rounded-2xl border border-white/5 flex flex-col hover:border-red-500/30 transition-colors">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2 text-slate-200 font-semibold font-display">
+                            <Trash2 size={18} className="text-red-500" />
+                            <h4>Lixeira</h4>
+                        </div>
+                        <Link to="/trash" className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 transition-colors">Ver tudo <ArrowRight size={12}/></Link>
+                    </div>
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
+                        <div className="text-3xl font-bold text-white mb-1">{trash.length}</div>
+                        <p className="text-xs text-slate-500 uppercase tracking-widest font-bold">Itens Removidos</p>
+                        <p className="text-[10px] text-slate-600 mt-2 italic">Ação necessária: Limpeza ou Restauração</p>
+                    </div>
+                </div>
+            )}
+
         </div>
       </div>
-    </div>
-  );
+    </>
+);
 };

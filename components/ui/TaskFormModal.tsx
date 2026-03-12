@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
-import { Task, Criticality, MaintenanceType } from '../../types';
-import { X, Save, Calendar, MapPin, CheckSquare, Square } from 'lucide-react';
+import { Task } from '../../types';
+import { X, Save, Calendar, MapPin, CheckSquare } from 'lucide-react';
 
 interface TaskFormModalProps {
   isOpen: boolean;
@@ -13,49 +13,31 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, i
   const { settings, addTask, updateTask } = useData();
 
   // Form State
-  const [formData, setFormData] = useState<Partial<Task>>({
-    title: '',
-    sectorId: '',
-    serviceId: '',
-    towerId: '',
-    location: '',
-    responsibleId: '',
-    situation: settings.situations[0]?.name || 'Aberto',
-    criticality: 'Média',
-    type: 'Corretiva',
-    materials: [],
-    callDate: new Date().toISOString().split('T')[0],
-    startDate: '',
-    endDate: ''
-  });
-
-  useEffect(() => {
+  const [formData, setFormData] = useState<Partial<Task>>(() => {
     if (initialData) {
-        setFormData({
+        return {
             ...initialData,
             callDate: initialData.callDate.split('T')[0],
             startDate: initialData.startDate ? initialData.startDate.split('T')[0] : '',
             endDate: initialData.endDate ? initialData.endDate.split('T')[0] : ''
-        });
-    } else {
-        // Reset for new entry
-        setFormData({
-            title: '',
-            sectorId: settings.sectors[0]?.id || '',
-            serviceId: settings.services[0]?.id || '',
-            towerId: settings.towers[0]?.id || '',
-            location: '',
-            responsibleId: settings.responsibles[0]?.id || '',
-            situation: settings.situations[0]?.name || 'Aberto',
-            criticality: 'Média',
-            type: 'Corretiva',
-            materials: [],
-            callDate: new Date().toISOString().split('T')[0],
-            startDate: '',
-            endDate: ''
-        });
+        };
     }
-  }, [initialData, isOpen, settings]);
+    return {
+        title: '',
+        sectorId: settings.sectors[0]?.id || '',
+        serviceId: settings.services[0]?.id || '',
+        towerId: settings.towers[0]?.id || '',
+        location: '',
+        responsibleId: settings.responsibles[0]?.id || '',
+        situation: settings.situations[0]?.name || 'Aberto',
+        criticality: 'Média',
+        type: 'Corretiva',
+        materials: [],
+        callDate: new Date().toISOString().split('T')[0],
+        startDate: '',
+        endDate: ''
+    };
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;

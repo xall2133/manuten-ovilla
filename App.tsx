@@ -13,6 +13,7 @@ import { Schedule } from './components/pages/Schedule';
 import { Painting } from './components/pages/Painting';
 import { Purchases } from './components/pages/Purchases';
 import { Works } from './components/pages/Works';
+import { Trash } from './components/pages/Trash';
 
 const ProtectedRoute = ({ children }: { children?: ReactNode }) => {
   const { user } = useAuth();
@@ -45,6 +46,7 @@ const AppContent = () => {
         <Route path="works" element={<Works />} />
         <Route path="painting" element={<Painting />} />
         <Route path="purchases" element={<Purchases />} />
+        <Route path="trash" element={<Trash />} />
         <Route path="settings" element={
           <AdminRoute>
             <Settings />

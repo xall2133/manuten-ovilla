@@ -1,11 +1,13 @@
 
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { Task, SettingsState, CatalogItem, Visit, ScheduleItem, MonthlyScheduleItem, PaintingProject, PurchaseRequest, ThirdPartyScheduleItem } from '../types';
+import { Task, SettingsState, CatalogItem, Visit, ScheduleItem, MonthlyScheduleItem, PaintingProject, PurchaseRequest, ThirdPartyScheduleItem, TrashItem } from '../types';
 import { supabase } from '../lib/supabase';
 
 interface DataContextType {
   tasks: Task[];
   visits: Visit[];
+  trash: TrashItem[];
   schedule: ScheduleItem[];
   monthlySchedule: MonthlyScheduleItem[];
   thirdPartySchedule: ThirdPartyScheduleItem[];
@@ -43,6 +45,9 @@ interface DataContextType {
   addPurchase: (item: Omit<PurchaseRequest, 'id'>) => Promise<void>;
   updatePurchase: (id: string, updates: Partial<PurchaseRequest>) => Promise<void>;
   deletePurchase: (id: string) => Promise<void>;
+  
+  restoreItem: (item: TrashItem) => Promise<void>;
+  permanentlyDeleteItem: (id: string) => Promise<void>;
 
   addSettingItem: (category: keyof SettingsState, name: string) => Promise<void>;
   updateSettingItem: (category: keyof SettingsState, id: string, newName: string) => Promise<void>;
@@ -76,9 +81,14 @@ const formatDateForDb = (dateStr?: string) => {
  */
 const getQueryId = (id: any) => String(id);
 
+const generateId = (prefix: string) => {
+    return `${prefix}-${Math.random().toString(36).substr(2, 9)}-${Math.random().toString(36).substr(2, 5)}`;
+};
+
 export const DataProvider = ({ children }: { children?: ReactNode }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
+  const [trash, setTrash] = useState<TrashItem[]>([]);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [monthlySchedule, setMonthlySchedule] = useState<MonthlyScheduleItem[]>([]);
   const [thirdPartySchedule, setThirdPartySchedule] = useState<ThirdPartyScheduleItem[]>([]);
@@ -96,7 +106,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           paintingRes, purchasesRes, sectorsRes, servicesRes,
           towersRes, responsiblesRes, materialsRes, situationsRes
         ] = await Promise.all([
-          supabase.from('tasks').select('*').order('created_at', { ascending: false }),
+          supabase.from('tasks').select('*').neq('situation', 'Lixeira').order('created_at', { ascending: false }),
           supabase.from('visits').select('*'),
           supabase.from('schedule').select('*'),
           supabase.from('monthly_schedule').select('*'),
@@ -110,6 +120,8 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           supabase.from('materials').select('*'),
           supabase.from('situations').select('*')
         ]);
+
+        const trashRes = await supabase.from('tasks').select('*').eq('situation', 'Lixeira').order('created_at', { ascending: false });
 
         if (tasksRes.data) {
             setTasks(tasksRes.data.map((t: any) => ({
@@ -130,6 +142,31 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
                 description: t.description,
                 createdAt: t.created_at
             })));
+        }
+
+        if (trashRes.data) {
+            setTrash(trashRes.data.map((t: any) => {
+                try {
+                    const parsed = JSON.parse(t.description || '{}');
+                    return {
+                        id: String(t.id),
+                        originalId: parsed.originalId || String(t.id),
+                        tableName: parsed.tableName || 'tasks',
+                        title: t.title,
+                        data: parsed.data || t,
+                        deletedAt: t.created_at
+                    };
+                } catch {
+                    return {
+                        id: String(t.id),
+                        originalId: String(t.id),
+                        tableName: 'tasks',
+                        title: t.title,
+                        data: t,
+                        deletedAt: t.created_at
+                    };
+                }
+            }));
         }
         
         if (visitsRes.data) setVisits(visitsRes.data.map((v:any) => ({ ...v, id: String(v.id), returnDate: v.return_date })));
@@ -181,6 +218,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addTask = async (newTask: Omit<Task, 'id' | 'createdAt'>) => {
     const { error } = await supabase.from('tasks').insert({
+        id: generateId('T'),
         title: newTask.title,
         sector_id: newTask.sectorId || null,
         service_id: newTask.serviceId || null,
@@ -223,13 +261,19 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const deleteTask = async (id: string) => {
     const qId = getQueryId(id);
+    const item = tasks.find(t => String(t.id) === String(id));
+    if (!item) return;
+
     setTasks(prev => prev.filter(t => String(t.id) !== String(id)));
-    const { error } = await supabase.from('tasks').delete().eq('id', qId);
-    if (error) handleError(error, 'Excluir Tarefa');
+    
+    const { error } = await supabase.from('tasks').update({ situation: 'Lixeira' }).eq('id', qId);
+    if (error) handleError(error, 'Mover para Lixeira');
+    else refreshData();
   };
 
   const addVisit = async (item: Omit<Visit, 'id'>) => {
      const { error } = await supabase.from('visits').insert({ 
+         id: generateId('V'),
          tower: item.tower, unit: item.unit, situation: item.situation, 
          time: item.time, collaborator: item.collaborator, status: item.status, 
          return_date: formatDateForDb(item.returnDate) 
@@ -256,13 +300,32 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const deleteVisit = async (id: string) => {
      const qId = getQueryId(id);
+     const item = visits.find(v => String(v.id) === String(id));
+     if (!item) return;
+
      setVisits(prev => prev.filter(v => String(v.id) !== String(id)));
+     
+     const trashPayload = {
+         id: generateId('TR'),
+         title: `Visita: ${item.tower} - ${item.unit}`,
+         situation: 'Lixeira',
+         description: JSON.stringify({ originalId: id, tableName: 'visits', data: item })
+     };
+
+     const { error: trashError } = await supabase.from('tasks').insert(trashPayload);
+     if (trashError) {
+         handleError(trashError, 'Mover para Lixeira');
+         return;
+     }
+
      const { error } = await supabase.from('visits').delete().eq('id', qId);
-     if (error) handleError(error, 'Excluir Visita');
+     if (error) handleError(error, 'Remover da Tabela Original');
+     else refreshData();
   };
 
   const addThirdPartyScheduleItem = async (item: Omit<ThirdPartyScheduleItem, 'id'>) => {
       const { error } = await supabase.from('third_party_schedule').insert({ 
+          id: generateId('TP'),
           company: item.company, 
           service: item.service, 
           frequency: item.frequency || 'Mensal', 
@@ -292,39 +355,43 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const deleteThirdPartyScheduleItem = async (id: string) => {
       const qId = getQueryId(id);
-      
-      // 1. Otimista: remove da tela primeiro
+      const item = thirdPartySchedule.find(s => String(s.id) === String(id));
+      if (!item) return;
+
       setThirdPartySchedule(prev => prev.filter(s => String(s.id) !== String(id)));
+      
+      const trashPayload = {
+          id: generateId('TR'),
+          title: `Contrato: ${item.company} - ${item.service}`,
+          situation: 'Lixeira',
+          description: JSON.stringify({ originalId: id, tableName: 'third_party_schedule', data: item })
+      };
 
-      // 2. Tenta excluir no banco
-      const { error, count } = await supabase
-        .from('third_party_schedule')
-        .delete({ count: 'exact' })
-        .eq('id', qId);
-
-      if (error) {
-          handleError(error, 'Excluir Obra/Cronograma');
-      } else {
-          console.log(`[DB] Exclusão processada. Linhas afetadas: ${count}`);
-          if (count === 0) {
-              console.warn("Nenhuma linha foi apagada no banco. Verifique se o ID existe e se as políticas de RLS permitem DELETE.");
-          }
+      const { error: trashError } = await supabase.from('tasks').insert(trashPayload);
+      if (trashError) {
+          handleError(trashError, 'Mover para Lixeira');
+          return;
       }
+
+      const { error } = await supabase.from('third_party_schedule').delete().eq('id', qId);
+      if (error) handleError(error, 'Remover da Tabela Original');
+      else refreshData();
   };
 
   const addScheduleItem = async (item: Omit<ScheduleItem, 'id'>) => {
       const { error } = await supabase.from('schedule').insert({ 
+          id: generateId('S'),
           shift: item.shift, monday: item.monday, tuesday: item.tuesday, 
           wednesday: item.wednesday, thursday: item.thursday, friday: item.friday, 
           saturday: item.saturday, work_start_date: formatDateForDb(item.workStartDate), 
           work_end_date: formatDateForDb(item.workEndDate), work_notice_date: formatDateForDb(item.workNoticeDate) 
       });
-      if (error) refreshData();
+      if (error) handleError(error, 'Adicionar Escala');
+      else refreshData();
   };
 
   const updateScheduleItem = async (id: string, updates: Partial<ScheduleItem>) => {
       const qId = getQueryId(id);
-      // Fix: Map properties explicitly to snake_case column names instead of using spread
       const { error } = await supabase.from('schedule').update({ 
           shift: updates.shift,
           monday: updates.monday,
@@ -337,28 +404,48 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           work_end_date: updates.workEndDate ? formatDateForDb(updates.workEndDate) : undefined,
           work_notice_date: updates.workNoticeDate ? formatDateForDb(updates.workNoticeDate) : undefined
       }).eq('id', qId);
-      if (error) refreshData();
+      if (error) handleError(error, 'Atualizar Escala');
+      else refreshData();
   };
 
   const deleteScheduleItem = async (id: string) => {
       const qId = getQueryId(id);
+      const item = schedule.find(s => String(s.id) === String(id));
+      if (!item) return;
+
       setSchedule(prev => prev.filter(s => String(s.id) !== String(id)));
+      
+      const trashPayload = {
+          id: generateId('TR'),
+          title: `Escala: ${item.shift}`,
+          situation: 'Lixeira',
+          description: JSON.stringify({ originalId: id, tableName: 'schedule', data: item })
+      };
+
+      const { error: trashError } = await supabase.from('tasks').insert(trashPayload);
+      if (trashError) {
+          handleError(trashError, 'Mover para Lixeira');
+          return;
+      }
+
       const { error } = await supabase.from('schedule').delete().eq('id', qId);
-      if (error) refreshData();
+      if (error) handleError(error, 'Remover da Tabela Original');
+      else refreshData();
   };
 
   const addMonthlyScheduleItem = async (item: Omit<MonthlyScheduleItem, 'id'>) => {
       const { error } = await supabase.from('monthly_schedule').insert({ 
+          id: generateId('MS'),
           shift: item.shift, week1: item.week1, week2: item.week2, week3: item.week3, 
           week4: item.week4, work_start_date: formatDateForDb(item.workStartDate), 
           work_end_date: formatDateForDb(item.workEndDate), work_notice_date: formatDateForDb(item.workNoticeDate) 
       });
-      if (error) refreshData();
+      if (error) handleError(error, 'Adicionar Escala Mensal');
+      else refreshData();
   };
 
   const updateMonthlyScheduleItem = async (id: string, updates: Partial<MonthlyScheduleItem>) => {
       const qId = getQueryId(id);
-      // Fix: Map properties explicitly to snake_case column names instead of using spread
       const { error } = await supabase.from('monthly_schedule').update({ 
           shift: updates.shift,
           week1: updates.week1,
@@ -369,30 +456,49 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           work_end_date: updates.workEndDate ? formatDateForDb(updates.workEndDate) : undefined,
           work_notice_date: updates.workNoticeDate ? formatDateForDb(updates.workNoticeDate) : undefined
       }).eq('id', qId);
-      if (error) refreshData();
+      if (error) handleError(error, 'Atualizar Escala Mensal');
+      else refreshData();
   };
 
   const deleteMonthlyScheduleItem = async (id: string) => {
       const qId = getQueryId(id);
+      const item = monthlySchedule.find(s => String(s.id) === String(id));
+      if (!item) return;
+
       setMonthlySchedule(prev => prev.filter(s => String(s.id) !== String(id)));
+      
+      const trashPayload = {
+          id: generateId('TR'),
+          title: `Escala Mensal: ${item.shift}`,
+          situation: 'Lixeira',
+          description: JSON.stringify({ originalId: id, tableName: 'monthly_schedule', data: item })
+      };
+
+      const { error: trashError } = await supabase.from('tasks').insert(trashPayload);
+      if (trashError) {
+          handleError(trashError, 'Mover para Lixeira');
+          return;
+      }
+
       const { error } = await supabase.from('monthly_schedule').delete().eq('id', qId);
-      if (error) refreshData();
+      if (error) handleError(error, 'Remover da Tabela Original');
+      else refreshData();
   };
 
   const addPaintingProject = async (item: Omit<PaintingProject, 'id'>) => {
-      // Fix: Use correct property name 'paintDetails' instead of 'paint_details'
       const { error } = await supabase.from('painting_projects').insert({ 
+          id: generateId('P'),
           tower: item.tower, local: item.local, criticality: item.criticality, 
           start_date: formatDateForDb(item.startDate), 
           end_date_forecast: formatDateForDb(item.endDateForecast), 
           status: item.status, paint_details: item.paintDetails, quantity: item.quantity 
       });
-      if (error) refreshData();
+      if (error) handleError(error, 'Adicionar Pintura');
+      else refreshData();
   };
 
   const updatePaintingProject = async (id: string, updates: Partial<PaintingProject>) => {
       const qId = getQueryId(id);
-      // Fix: Map properties explicitly to snake_case column names instead of using spread
       const { error } = await supabase.from('painting_projects').update({ 
           tower: updates.tower,
           local: updates.local,
@@ -403,29 +509,49 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           start_date: updates.startDate ? formatDateForDb(updates.startDate) : undefined, 
           end_date_forecast: updates.endDateForecast ? formatDateForDb(updates.endDateForecast) : undefined 
       }).eq('id', qId);
-      if (error) refreshData();
+      if (error) handleError(error, 'Atualizar Pintura');
+      else refreshData();
   };
 
   const deletePaintingProject = async (id: string) => {
       const qId = getQueryId(id);
+      const item = paintingProjects.find(p => String(p.id) === String(id));
+      if (!item) return;
+
       setPaintingProjects(prev => prev.filter(p => String(p.id) !== String(id)));
+      
+      const trashPayload = {
+          id: generateId('TR'),
+          title: `Pintura: ${item.tower} - ${item.local}`,
+          situation: 'Lixeira',
+          description: JSON.stringify({ originalId: id, tableName: 'painting_projects', data: item })
+      };
+
+      const { error: trashError } = await supabase.from('tasks').insert(trashPayload);
+      if (trashError) {
+          handleError(trashError, 'Mover para Lixeira');
+          return;
+      }
+
       const { error } = await supabase.from('painting_projects').delete().eq('id', qId);
-      if (error) handleError(error, 'Excluir Pintura');
+      if (error) handleError(error, 'Remover da Tabela Original');
+      else refreshData();
   };
 
   const addPurchase = async (item: Omit<PurchaseRequest, 'id'>) => {
       const { error } = await supabase.from('purchases').insert({ 
+          id: generateId('R'),
           quantity: item.quantity, description: item.description, local: item.local, 
           request_date: formatDateForDb(item.requestDate), 
           approval_date: formatDateForDb(item.approvalDate), 
           entry_date: formatDateForDb(item.entryDate) 
       });
-      if (error) refreshData();
+      if (error) handleError(error, 'Adicionar Compra');
+      else refreshData();
   };
 
   const updatePurchase = async (id: string, updates: Partial<PurchaseRequest>) => {
       const qId = getQueryId(id);
-      // Fix: Map properties explicitly to snake_case column names instead of using spread
       const { error } = await supabase.from('purchases').update({ 
           quantity: updates.quantity,
           description: updates.description,
@@ -434,31 +560,96 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
           approval_date: updates.approvalDate ? formatDateForDb(updates.approvalDate) : undefined,
           entry_date: updates.entryDate ? formatDateForDb(updates.entryDate) : undefined
       }).eq('id', qId);
-      if (error) refreshData();
+      if (error) handleError(error, 'Atualizar Compra');
+      else refreshData();
   };
 
   const deletePurchase = async (id: string) => {
       const qId = getQueryId(id);
+      const item = purchases.find(p => String(p.id) === String(id));
+      if (!item) return;
+
       setPurchases(prev => prev.filter(p => String(p.id) !== String(id)));
+      
+      const trashPayload = {
+          id: generateId('TR'),
+          title: `Compra: ${item.description}`,
+          situation: 'Lixeira',
+          description: JSON.stringify({ originalId: id, tableName: 'purchases', data: item })
+      };
+
+      const { error: trashError } = await supabase.from('tasks').insert(trashPayload);
+      if (trashError) {
+          handleError(trashError, 'Mover para Lixeira');
+          return;
+      }
+
       const { error } = await supabase.from('purchases').delete().eq('id', qId);
-      if (error) handleError(error, 'Excluir Compra');
+      if (error) handleError(error, 'Remover da Tabela Original');
+      else refreshData();
+  };
+
+  const restoreItem = async (item: TrashItem) => {
+      try {
+          if (item.tableName === 'tasks') {
+              const { error } = await supabase.from('tasks').update({ situation: 'Pendente' }).eq('id', item.id);
+              if (error) throw error;
+          } else {
+              // Map snake_case for DB
+              const dbData: any = {};
+              Object.entries(item.data).forEach(([key, value]) => {
+                  const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+                  dbData[snakeKey] = value;
+              });
+              
+              // Remove id to let DB handle it if needed, or keep it
+              dbData.id = item.originalId;
+
+              const { error: insertError } = await supabase.from(item.tableName).insert(dbData);
+              if (insertError) throw insertError;
+
+              const { error: deleteError } = await supabase.from('tasks').delete().eq('id', item.id);
+              if (deleteError) throw deleteError;
+          }
+          refreshData();
+      } catch (error) {
+          handleError(error, 'Restaurar Item');
+      }
+  };
+
+  const permanentlyDeleteItem = async (id: string) => {
+      const qId = getQueryId(id);
+      const { error } = await supabase.from('tasks').delete().eq('id', qId);
+      if (error) handleError(error, 'Excluir Permanentemente');
+      else refreshData();
   };
 
   const addSettingItem = async (category: keyof SettingsState, name: string) => {
-    const { error } = await supabase.from(category).insert({ name });
-    if (error) refreshData();
+    const { error } = await supabase.from(category).insert({ 
+        id: Math.random().toString(36).substr(2, 9),
+        name 
+    });
+    if (error) handleError(error, 'Adicionar Configuração');
+    else refreshData();
   };
 
   const updateSettingItem = async (category: keyof SettingsState, id: string, newName: string) => {
     const qId = getQueryId(id);
     const { error } = await supabase.from(category).update({ name: newName }).eq('id', qId);
-    if (error) refreshData();
+    if (error) handleError(error, 'Atualizar Configuração');
+    else refreshData();
   };
 
   const removeSettingItem = async (category: keyof SettingsState, id: string) => {
     const qId = getQueryId(id);
-    const { error } = await supabase.from(category).delete().eq('id', qId);
-    if (error) refreshData();
+    const { error, count } = await supabase.from(category).delete({ count: 'exact' }).eq('id', qId);
+    if (error) handleError(error, 'Excluir Configuração');
+    else if (count === 0) {
+        alert('AVISO: O item não foi encontrado no banco de dados para exclusão.');
+        refreshData();
+    } else {
+        refreshData();
+    }
   };
 
   const downloadCSV = (content: string, filename: string) => {
@@ -520,15 +711,39 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         };
         const rows = lines.slice(1).map(line => line.trim() ? (delimiter === ',' ? line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/) : line.split(';')) : null).filter(r => r && r.length > 1) as string[][];
         
-        let detectedType = headers.some(h => h.includes('unidade')) ? 'visits' : 'tasks';
-        let count = rows.length;
+        const detectedType = headers.some(h => h.includes('unidade')) ? 'visits' : 'tasks';
+        const count = rows.length;
         
         if (detectedType === 'visits') {
-            const newVisits = rows.map(r => ({ tower: getValue(r, 'torre') || 'T1', unit: getValue(r, 'unidade') || '000', situation: getValue(r, 'situacao') || 'Importado', time: getValue(r, 'hora') || '08:00', collaborator: getValue(r, 'colaborador') || '-', status: getValue(r, 'status') || 'Pendente', return_date: formatDateForDb(getValue(r, 'retorno')) }));
-            await supabase.from('visits').insert(newVisits);
+            const newVisits = rows.map(r => ({ 
+                id: generateId('V'),
+                tower: getValue(r, 'torre') || 'T1', 
+                unit: getValue(r, 'unidade') || '000', 
+                situation: getValue(r, 'situacao') || 'Importado', 
+                time: getValue(r, 'hora') || '08:00', 
+                collaborator: getValue(r, 'colaborador') || '-', 
+                status: getValue(r, 'status') || 'Pendente', 
+                return_date: formatDateForDb(getValue(r, 'retorno')) 
+            }));
+            const { error } = await supabase.from('visits').insert(newVisits);
+            if (error) throw error;
         } else {
-            const newTasks = rows.map(r => ({ title: getValue(r, 'titulo') || 'Importada', sector_id: null, service_id: null, tower_id: null, location: getValue(r, 'local') || 'Geral', responsible_id: null, situation: getValue(r, 'situacao') || 'Aberto', criticality: 'Média', type: getValue(r, 'tipo') || 'Corretiva', materials: [], call_date: formatDateForDb(new Date().toISOString().split('T')[0]) }));
-            await supabase.from('tasks').insert(newTasks);
+            const newTasks = rows.map(r => ({ 
+                id: generateId('T'),
+                title: getValue(r, 'titulo') || 'Importada', 
+                sector_id: null, 
+                service_id: null, 
+                tower_id: null, 
+                location: getValue(r, 'local') || 'Geral', 
+                responsible_id: null, 
+                situation: getValue(r, 'situacao') || 'Aberto', 
+                criticality: 'Média', 
+                type: getValue(r, 'tipo') || 'Corretiva', 
+                materials: [], 
+                call_date: formatDateForDb(new Date().toISOString().split('T')[0]) 
+            }));
+            const { error } = await supabase.from('tasks').insert(newTasks);
+            if (error) throw error;
         }
         refreshData();
         return { success: true, message: 'Importação realizada!', type: detectedType, count };
@@ -537,10 +752,10 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   return (
     <DataContext.Provider value={{ 
-        tasks, visits, schedule, monthlySchedule, thirdPartySchedule, paintingProjects, purchases, settings, isLoading, lastUpdated, refreshData,
+        tasks, visits, trash, schedule, monthlySchedule, thirdPartySchedule, paintingProjects, purchases, settings, isLoading, lastUpdated, refreshData,
         addTask, updateTask, deleteTask, addVisit, updateVisit, deleteVisit, addScheduleItem, updateScheduleItem, deleteScheduleItem,
         addMonthlyScheduleItem, updateMonthlyScheduleItem, deleteMonthlyScheduleItem, addThirdPartyScheduleItem, updateThirdPartyScheduleItem, deleteThirdPartyScheduleItem,
-        addPaintingProject, updatePaintingProject, deletePaintingProject, addPurchase, updatePurchase, deletePurchase, addSettingItem, updateSettingItem, removeSettingItem, 
+        addPaintingProject, updatePaintingProject, deletePaintingProject, addPurchase, updatePurchase, deletePurchase, restoreItem, permanentlyDeleteItem, addSettingItem, updateSettingItem, removeSettingItem, 
         exportTasksToCSV, exportVisitsToCSV, exportThirdPartyToCSV, exportPaintingToCSV, exportPurchasesToCSV, importDataFromCSV, clearAllData
     }}>{children}</DataContext.Provider>
   );
