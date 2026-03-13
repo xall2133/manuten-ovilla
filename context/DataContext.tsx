@@ -81,6 +81,13 @@ const formatDateForDb = (dateStr?: string) => {
  */
 const getQueryId = (id: any) => String(id);
 
+const generateId = () => {
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+        return window.crypto.randomUUID();
+    }
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
 export const DataProvider = ({ children }: { children?: ReactNode }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
@@ -221,6 +228,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addTask = async (newTask: Omit<Task, 'id' | 'createdAt'>) => {
     const { error } = await supabase.from('tasks').insert({
+        id: generateId(),
         title: newTask.title,
         sector_id: newTask.sectorId || null,
         service_id: newTask.serviceId || null,
@@ -275,6 +283,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addVisit = async (item: Omit<Visit, 'id'>) => {
      const { error } = await supabase.from('visits').insert({ 
+         id: generateId(),
          tower: item.tower, unit: item.unit, situation: item.situation, 
          time: item.time, collaborator: item.collaborator, status: item.status, 
          return_date: formatDateForDb(item.returnDate) 
@@ -325,6 +334,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addThirdPartyScheduleItem = async (item: Omit<ThirdPartyScheduleItem, 'id'>) => {
       const { error } = await supabase.from('third_party_schedule').insert({ 
+          id: generateId(),
           company: item.company, 
           service: item.service, 
           frequency: item.frequency || 'Mensal', 
@@ -378,6 +388,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addScheduleItem = async (item: Omit<ScheduleItem, 'id'>) => {
       const { error } = await supabase.from('schedule').insert({ 
+          id: generateId(),
           shift: item.shift, monday: item.monday, tuesday: item.tuesday, 
           wednesday: item.wednesday, thursday: item.thursday, friday: item.friday, 
           saturday: item.saturday, work_start_date: formatDateForDb(item.workStartDate), 
@@ -431,6 +442,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addMonthlyScheduleItem = async (item: Omit<MonthlyScheduleItem, 'id'>) => {
       const { error } = await supabase.from('monthly_schedule').insert({ 
+          id: generateId(),
           shift: item.shift, week1: item.week1, week2: item.week2, week3: item.week3, 
           week4: item.week4, work_start_date: formatDateForDb(item.workStartDate), 
           work_end_date: formatDateForDb(item.workEndDate), work_notice_date: formatDateForDb(item.workNoticeDate) 
@@ -481,6 +493,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addPaintingProject = async (item: Omit<PaintingProject, 'id'>) => {
       const { error } = await supabase.from('painting_projects').insert({ 
+          id: generateId(),
           tower: item.tower, local: item.local, criticality: item.criticality, 
           start_date: formatDateForDb(item.startDate), 
           end_date_forecast: formatDateForDb(item.endDateForecast), 
@@ -532,6 +545,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addPurchase = async (item: Omit<PurchaseRequest, 'id'>) => {
       const { error } = await supabase.from('purchases').insert({ 
+          id: generateId(),
           quantity: item.quantity, description: item.description, local: item.local, 
           request_date: formatDateForDb(item.requestDate), 
           approval_date: formatDateForDb(item.approvalDate), 
@@ -616,6 +630,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addSettingItem = async (category: keyof SettingsState, name: string) => {
     const { error } = await supabase.from(category).insert({ 
+        id: generateId(),
         name 
     });
     if (error) handleError(error, 'Adicionar Configuração');
@@ -705,6 +720,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         
         if (detectedType === 'visits') {
             const newVisits = rows.map(r => ({ 
+                id: generateId(),
                 tower: getValue(r, 'torre') || 'T1', 
                 unit: getValue(r, 'unidade') || '000', 
                 situation: getValue(r, 'situacao') || 'Importado', 
@@ -717,6 +733,7 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
             if (error) throw error;
         } else {
             const newTasks = rows.map(r => ({ 
+                id: generateId(),
                 title: getValue(r, 'titulo') || 'Importada', 
                 sector_id: null, 
                 service_id: null, 
