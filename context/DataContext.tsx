@@ -81,10 +81,6 @@ const formatDateForDb = (dateStr?: string) => {
  */
 const getQueryId = (id: any) => String(id);
 
-const generateId = (prefix: string) => {
-    return `${prefix}-${Math.random().toString(36).substr(2, 9)}-${Math.random().toString(36).substr(2, 5)}`;
-};
-
 export const DataProvider = ({ children }: { children?: ReactNode }) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
@@ -208,17 +204,23 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
     refreshData();
   }, [refreshData]);
 
-  const handleError = (err: any, context: string) => {
+  const handleError = useCallback((err: any, context: string, shouldRefresh = true) => {
       console.error(`${context} Error:`, err);
       const msg = err.message || 'Erro de conexão/permissão';
       const detail = err.details || '';
-      alert(`FALHA NA OPERAÇÃO (${context}):\n\nMotivo: ${msg}\n${detail ? `Detalhes: ${detail}` : ''}\n\nSE O ITEM NÃO SUMIU: Provavelmente falta permissão de DELETE no seu Supabase para esta tabela.`);
-      refreshData();
-  };
+      
+      // Avoid alert in background refresh to prevent blocking UI
+      if (context !== 'Carregar Dados') {
+          alert(`FALHA NA OPERAÇÃO (${context}):\n\nMotivo: ${msg}\n${detail ? `Detalhes: ${detail}` : ''}\n\nSE O ITEM NÃO SUMIU: Provavelmente falta permissão de DELETE no seu Supabase para esta tabela.`);
+      }
+      
+      if (shouldRefresh) {
+          refreshData();
+      }
+  }, [refreshData]);
 
   const addTask = async (newTask: Omit<Task, 'id' | 'createdAt'>) => {
     const { error } = await supabase.from('tasks').insert({
-        id: generateId('T'),
         title: newTask.title,
         sector_id: newTask.sectorId || null,
         service_id: newTask.serviceId || null,
@@ -273,7 +275,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addVisit = async (item: Omit<Visit, 'id'>) => {
      const { error } = await supabase.from('visits').insert({ 
-         id: generateId('V'),
          tower: item.tower, unit: item.unit, situation: item.situation, 
          time: item.time, collaborator: item.collaborator, status: item.status, 
          return_date: formatDateForDb(item.returnDate) 
@@ -306,7 +307,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
      setVisits(prev => prev.filter(v => String(v.id) !== String(id)));
      
      const trashPayload = {
-         id: generateId('TR'),
          title: `Visita: ${item.tower} - ${item.unit}`,
          situation: 'Lixeira',
          description: JSON.stringify({ originalId: id, tableName: 'visits', data: item })
@@ -325,7 +325,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addThirdPartyScheduleItem = async (item: Omit<ThirdPartyScheduleItem, 'id'>) => {
       const { error } = await supabase.from('third_party_schedule').insert({ 
-          id: generateId('TP'),
           company: item.company, 
           service: item.service, 
           frequency: item.frequency || 'Mensal', 
@@ -361,7 +360,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       setThirdPartySchedule(prev => prev.filter(s => String(s.id) !== String(id)));
       
       const trashPayload = {
-          id: generateId('TR'),
           title: `Contrato: ${item.company} - ${item.service}`,
           situation: 'Lixeira',
           description: JSON.stringify({ originalId: id, tableName: 'third_party_schedule', data: item })
@@ -380,7 +378,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addScheduleItem = async (item: Omit<ScheduleItem, 'id'>) => {
       const { error } = await supabase.from('schedule').insert({ 
-          id: generateId('S'),
           shift: item.shift, monday: item.monday, tuesday: item.tuesday, 
           wednesday: item.wednesday, thursday: item.thursday, friday: item.friday, 
           saturday: item.saturday, work_start_date: formatDateForDb(item.workStartDate), 
@@ -416,7 +413,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       setSchedule(prev => prev.filter(s => String(s.id) !== String(id)));
       
       const trashPayload = {
-          id: generateId('TR'),
           title: `Escala: ${item.shift}`,
           situation: 'Lixeira',
           description: JSON.stringify({ originalId: id, tableName: 'schedule', data: item })
@@ -435,7 +431,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addMonthlyScheduleItem = async (item: Omit<MonthlyScheduleItem, 'id'>) => {
       const { error } = await supabase.from('monthly_schedule').insert({ 
-          id: generateId('MS'),
           shift: item.shift, week1: item.week1, week2: item.week2, week3: item.week3, 
           week4: item.week4, work_start_date: formatDateForDb(item.workStartDate), 
           work_end_date: formatDateForDb(item.workEndDate), work_notice_date: formatDateForDb(item.workNoticeDate) 
@@ -468,7 +463,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       setMonthlySchedule(prev => prev.filter(s => String(s.id) !== String(id)));
       
       const trashPayload = {
-          id: generateId('TR'),
           title: `Escala Mensal: ${item.shift}`,
           situation: 'Lixeira',
           description: JSON.stringify({ originalId: id, tableName: 'monthly_schedule', data: item })
@@ -487,7 +481,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addPaintingProject = async (item: Omit<PaintingProject, 'id'>) => {
       const { error } = await supabase.from('painting_projects').insert({ 
-          id: generateId('P'),
           tower: item.tower, local: item.local, criticality: item.criticality, 
           start_date: formatDateForDb(item.startDate), 
           end_date_forecast: formatDateForDb(item.endDateForecast), 
@@ -521,7 +514,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       setPaintingProjects(prev => prev.filter(p => String(p.id) !== String(id)));
       
       const trashPayload = {
-          id: generateId('TR'),
           title: `Pintura: ${item.tower} - ${item.local}`,
           situation: 'Lixeira',
           description: JSON.stringify({ originalId: id, tableName: 'painting_projects', data: item })
@@ -540,7 +532,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addPurchase = async (item: Omit<PurchaseRequest, 'id'>) => {
       const { error } = await supabase.from('purchases').insert({ 
-          id: generateId('R'),
           quantity: item.quantity, description: item.description, local: item.local, 
           request_date: formatDateForDb(item.requestDate), 
           approval_date: formatDateForDb(item.approvalDate), 
@@ -572,7 +563,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
       setPurchases(prev => prev.filter(p => String(p.id) !== String(id)));
       
       const trashPayload = {
-          id: generateId('TR'),
           title: `Compra: ${item.description}`,
           situation: 'Lixeira',
           description: JSON.stringify({ originalId: id, tableName: 'purchases', data: item })
@@ -626,7 +616,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
 
   const addSettingItem = async (category: keyof SettingsState, name: string) => {
     const { error } = await supabase.from(category).insert({ 
-        id: Math.random().toString(36).substr(2, 9),
         name 
     });
     if (error) handleError(error, 'Adicionar Configuração');
@@ -716,7 +705,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
         
         if (detectedType === 'visits') {
             const newVisits = rows.map(r => ({ 
-                id: generateId('V'),
                 tower: getValue(r, 'torre') || 'T1', 
                 unit: getValue(r, 'unidade') || '000', 
                 situation: getValue(r, 'situacao') || 'Importado', 
@@ -729,7 +717,6 @@ export const DataProvider = ({ children }: { children?: ReactNode }) => {
             if (error) throw error;
         } else {
             const newTasks = rows.map(r => ({ 
-                id: generateId('T'),
                 title: getValue(r, 'titulo') || 'Importada', 
                 sector_id: null, 
                 service_id: null, 
